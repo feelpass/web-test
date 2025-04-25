@@ -34,3 +34,6 @@ desktop.ini
 venv/
 env/
 .env 
+*.pdf
+
+folder_metrics_report.md

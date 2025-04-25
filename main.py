@@ -531,8 +531,8 @@ def main():
     """Main function to process PDF files and generate folder-based report."""
     print("Starting PDF report processing...")
 
-    # Find all PDF files
-    pdf_files = find_pdf_files("data")
+    # Find all PDF files in current directory and all subdirectories
+    pdf_files = find_pdf_files(".")
     print(f"Found {len(pdf_files)} PDF files to process.")
 
     # Group data by folder
