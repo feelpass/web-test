@@ -8,16 +8,15 @@ PDF Metrics Analyzer는 PDF 테스트 보고서에서 성능 지표를 추출하
 - FPS, 대역폭, RTT 값 추출
 - 폴더 기반 평균 지표 생성
 - 요약 테이블이 포함된 상세 마크다운 보고서 생성
-- 사용자 친화적인 GUI 인터페이스
-- 진행 상황과 결과를 동시에 확인 가능
+- 자동 보고서 생성
 
 ## 설치 방법
 
 ### Windows 사용자
 
 1. [Releases](../../releases) 페이지에서 최신 버전을 다운로드하세요
-2. `PDFMetricsAnalyzer.exe` 파일을 실행하세요 - 설치 필요 없음
-3. 프로그램이 자동으로 `data` 폴더를 생성합니다
+2. `PDFMetricsAnalyzer.exe` 파일을 원하는 위치에 저장하세요 - 설치 필요 없음
+3. 실행 파일과 같은 위치에 `data` 폴더를 생성하세요 (실행 시 없으면 자동 생성됨)
 4. PDF 파일을 `data` 폴더에 넣으세요
 
 ### 개발자를 위한 설치
@@ -34,24 +33,24 @@ PDF Metrics Analyzer는 PDF 테스트 보고서에서 성능 지표를 추출하
    ```
    pip install -r requirements.txt
    ```
-4. 애플리케이션을 실행하세요:
+4. 스크립트를 실행하세요:
    ```
-   python app.py
+   python main.py
    ```
 
 ## 사용 방법
 
-1. 애플리케이션을 실행하세요
-2. PDF 파일을 data 폴더에 넣으세요 (데이터 폴더 버튼을 클릭하여 열 수 있음)
-3. "Process PDF Files" 버튼을 클릭하여 분석을 시작하세요
-4. 처리가 완료되면 오른쪽 패널에서 결과를 확인하세요
-5. 전체 상세 보고서를 보려면 "Open Full Report" 버튼을 클릭하세요
+1. PDF 파일을 `data` 폴더에 넣으세요
+2. `PDFMetricsAnalyzer.exe`를 더블클릭하여 실행하세요
+3. 프로그램이 자동으로 데이터 폴더의 모든 PDF 파일을 처리합니다
+4. 처리가 완료되면 `reports` 폴더에 생성된 보고서를 확인하세요
 
 ## 보고서 형식
 
 생성된 보고서는 다음을 포함합니다:
 - FPS, 대역폭, RTT에 대한 폴더 평균이 포함된 요약 테이블
 - 각 폴더의 각 파일에 대한 지표의 상세 내역
+- 보고서는 `reports/folder_metrics_report.md` 파일로 저장됩니다
 
 ## 소스에서 빌드하기
 
@@ -61,15 +60,11 @@ PDF Metrics Analyzer는 PDF 테스트 보고서에서 성능 지표를 추출하
    ```
    pip install pyinstaller
    ```
-2. 아이콘 생성:
+2. 실행 파일 빌드:
    ```
-   python create_icon.py
+   pyinstaller --onefile --name=PDFMetricsAnalyzer main.py
    ```
-3. 실행 파일 빌드:
-   ```
-   pyinstaller --onefile --windowed --icon=app_icon.ico --name=PDFMetricsAnalyzer --add-data "main.py;." app.py
-   ```
-4. 실행 파일은 `dist` 폴더에서 사용 가능합니다
+3. 실행 파일은 `dist` 폴더에서 사용 가능합니다
 
 ## 라이선스
 

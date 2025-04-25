@@ -25,10 +25,6 @@ jobs:
         pip install pyinstaller
         pip install -r requirements.txt
         
-    - name: Generate app icon
-      run: |
-        python create_icon.py
-    
     - name: Create sample data directory structure
       run: |
         mkdir -p data/sample
@@ -36,7 +32,7 @@ jobs:
         
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --icon=app_icon.ico --name=PDFMetricsAnalyzer --add-data "main.py;." app.py
+        pyinstaller --onefile --name=PDFMetricsAnalyzer main.py
         
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
