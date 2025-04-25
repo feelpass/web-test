@@ -36,4 +36,4 @@ env/
 .env 
 *.pdf
 
-folder_metrics_report.md
+reports/folder_metrics_report.md
