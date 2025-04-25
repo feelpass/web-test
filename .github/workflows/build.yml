@@ -3,6 +3,8 @@ name: Build Windows Executable
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'  # 태그 형식이 v로 시작하는 경우에 실행 (예: v1.0.0)
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -39,4 +41,17 @@ jobs:
       with:
         name: PDFMetricsAnalyzer
         path: dist/PDFMetricsAnalyzer.exe
+
+    - name: Create Release
+      id: create_release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+        files: |
+          dist/PDFMetricsAnalyzer.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
