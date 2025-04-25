@@ -1,11 +1,12 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext, ttk
 import threading
 import subprocess
 import importlib.util
 from datetime import datetime
+import webbrowser
 
 # Check if we're running as a bundled executable or as a Python script
 if getattr(sys, "frozen", False):
@@ -58,14 +59,14 @@ class PDFMetricsApp:
     def __init__(self, root):
         self.root = root
         self.root.title("PDF Metrics Analyzer")
-        self.root.geometry("800x600")
-        self.root.minsize(600, 400)
+        self.root.geometry("1000x700")
+        self.root.minsize(800, 600)
 
         # Configure the grid layout
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=0)  # Header
-        self.root.rowconfigure(1, weight=1)  # Console output
-        self.root.rowconfigure(2, weight=0)  # Buttons
+        self.root.rowconfigure(1, weight=1)  # Content area
+        self.root.rowconfigure(2, weight=0)  # Footer buttons
 
         # Create header frame
         self.header_frame = tk.Frame(root, bg="#4a7abc", padx=10, pady=10)
@@ -80,42 +81,64 @@ class PDFMetricsApp:
         )
         self.title_label.pack(side=tk.LEFT)
 
-        # Create console output area
-        self.console_frame = tk.Frame(root, padx=10, pady=10)
-        self.console_frame.grid(row=1, column=0, sticky="nsew")
+        # Create content frame with two panes
+        self.content_frame = tk.Frame(root, padx=10, pady=10)
+        self.content_frame.grid(row=1, column=0, sticky="nsew")
+        self.content_frame.columnconfigure(0, weight=1)
+        self.content_frame.columnconfigure(1, weight=1)
+        self.content_frame.rowconfigure(0, weight=0)  # Labels
+        self.content_frame.rowconfigure(1, weight=1)  # Text areas
 
-        self.console_frame.columnconfigure(0, weight=1)
-        self.console_frame.rowconfigure(0, weight=0)
-        self.console_frame.rowconfigure(1, weight=1)
+        # Progress section
+        self.progress_label = tk.Label(
+            self.content_frame,
+            text="PDF Processing Log",
+            font=("Arial", 12, "bold"),
+            anchor="w",
+        )
+        self.progress_label.grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
+        self.console = scrolledtext.ScrolledText(
+            self.content_frame, wrap=tk.WORD, background="#f0f0f0", height=20
+        )
+        self.console.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.console.config(state=tk.DISABLED)
+
+        # Results section
+        self.results_label = tk.Label(
+            self.content_frame,
+            text="Report Preview",
+            font=("Arial", 12, "bold"),
+            anchor="w",
+        )
+        self.results_label.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+
+        self.report_display = scrolledtext.ScrolledText(
+            self.content_frame, wrap=tk.WORD, background="#ffffff", height=20
+        )
+        self.report_display.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self.report_display.config(state=tk.DISABLED)
+
+        # Progress bar
+        self.progress_bar = ttk.Progressbar(self.content_frame, mode="indeterminate")
+        self.progress_bar.grid(
+            row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5
+        )
+
+        # Status label
         self.status_label = tk.Label(
-            self.console_frame,
-            text="Ready to process PDF files.",
+            self.content_frame,
+            text="Ready to process PDF files from data folder.",
             font=("Arial", 10),
             anchor="w",
         )
-        self.status_label.grid(row=0, column=0, sticky="ew")
-
-        self.console = scrolledtext.ScrolledText(
-            self.console_frame, wrap=tk.WORD, background="#f0f0f0", height=20
+        self.status_label.grid(
+            row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5
         )
-        self.console.grid(row=1, column=0, sticky="nsew")
-        self.console.config(state=tk.DISABLED)
 
         # Create buttons frame
         self.buttons_frame = tk.Frame(root, padx=10, pady=10)
         self.buttons_frame.grid(row=2, column=0, sticky="ew")
-
-        self.select_dir_button = tk.Button(
-            self.buttons_frame,
-            text="Select PDF Directory",
-            command=self.select_directory,
-            bg="#4CAF50",
-            fg="white",
-            padx=10,
-            pady=5,
-        )
-        self.select_dir_button.pack(side=tk.LEFT, padx=5)
 
         self.process_button = tk.Button(
             self.buttons_frame,
@@ -123,22 +146,36 @@ class PDFMetricsApp:
             command=self.process_pdfs,
             bg="#2196F3",
             fg="white",
-            padx=10,
-            pady=5,
+            padx=20,
+            pady=10,
+            font=("Arial", 12),
         )
         self.process_button.pack(side=tk.LEFT, padx=5)
 
         self.open_report_button = tk.Button(
             self.buttons_frame,
-            text="Open Latest Report",
+            text="Open Full Report",
             command=self.open_report,
             bg="#FF9800",
             fg="white",
-            padx=10,
-            pady=5,
+            padx=20,
+            pady=10,
+            font=("Arial", 12),
             state=tk.DISABLED,
         )
         self.open_report_button.pack(side=tk.LEFT, padx=5)
+
+        self.open_folder_button = tk.Button(
+            self.buttons_frame,
+            text="Open Data Folder",
+            command=self.open_data_folder,
+            bg="#4CAF50",
+            fg="white",
+            padx=20,
+            pady=10,
+            font=("Arial", 12),
+        )
+        self.open_folder_button.pack(side=tk.LEFT, padx=5)
 
         self.exit_button = tk.Button(
             self.buttons_frame,
@@ -146,24 +183,51 @@ class PDFMetricsApp:
             command=self.root.destroy,
             bg="#f44336",
             fg="white",
-            padx=10,
-            pady=5,
+            padx=20,
+            pady=10,
+            font=("Arial", 12),
         )
         self.exit_button.pack(side=tk.RIGHT, padx=5)
 
         # Initialize variables
-        self.selected_dir = data_dir  # Default to the data directory
+        self.selected_dir = data_dir  # Always use the data directory
         self.latest_report = ""
         self.processing = False
-
-        # Update status with default directory
-        self.status_label.config(text=f"Default directory: {self.selected_dir}")
 
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Redirect stdout to the console
         self.redirect_stdout()
+
+        # Update status with information about data directory
+        self.status_label.config(
+            text=f"Ready to process PDF files from: {self.selected_dir}"
+        )
+
+        # Auto-check for PDF files in data directory
+        self.check_pdf_files()
+
+    def check_pdf_files(self):
+        """Check if there are PDF files in the data directory and update status."""
+        try:
+            if os.path.exists(self.selected_dir):
+                pdf_count = len(
+                    [f for f in os.listdir(self.selected_dir) if f.endswith(".pdf")]
+                )
+                if pdf_count > 0:
+                    self.status_label.config(
+                        text=f"Found {pdf_count} PDF files in data folder. Ready to process."
+                    )
+                else:
+                    self.status_label.config(
+                        text="No PDF files found in data folder. Please add PDF files before processing."
+                    )
+                    self.update_console(
+                        "No PDF files found in data folder. Please add PDF files before processing.\n"
+                    )
+        except Exception as e:
+            self.status_label.config(text=f"Error checking data folder: {str(e)}")
 
     def redirect_stdout(self):
         class ConsoleRedirector:
@@ -190,20 +254,18 @@ class PDFMetricsApp:
         if hasattr(self, "old_stdout"):
             sys.stdout = self.old_stdout
 
-    def select_directory(self):
-        selected = filedialog.askdirectory(
-            title="Select Directory Containing PDF Files", initialdir=self.selected_dir
-        )
-        if selected:
-            self.selected_dir = selected
-            self.status_label.config(text=f"Selected directory: {self.selected_dir}")
-            self.update_console(f"Selected directory: {self.selected_dir}\n")
-
     def update_console(self, message):
         self.console.config(state=tk.NORMAL)
         self.console.insert(tk.END, message)
         self.console.see(tk.END)
         self.console.config(state=tk.DISABLED)
+
+    def update_report_display(self, content):
+        self.report_display.config(state=tk.NORMAL)
+        self.report_display.delete(1.0, tk.END)
+        self.report_display.insert(tk.END, content)
+        self.report_display.see(tk.END)
+        self.report_display.config(state=tk.DISABLED)
 
     def process_pdfs(self):
         if self.processing:
@@ -212,22 +274,30 @@ class PDFMetricsApp:
             )
             return
 
-        if not self.selected_dir:
+        # Always use the data directory
+        if not os.path.exists(self.selected_dir):
             messagebox.showwarning(
-                "No Directory Selected",
-                "Please select a directory containing PDF files first.",
+                "No Data Directory",
+                "The data directory does not exist. It will be created, but you need to add PDF files to it.",
             )
+            os.makedirs(self.selected_dir, exist_ok=True)
             return
 
         self.processing = True
         self.process_button.config(state=tk.DISABLED)
-        self.select_dir_button.config(state=tk.DISABLED)
         self.status_label.config(text="Processing PDF files... Please wait.")
 
-        # Clear console
+        # Clear console and report display
         self.console.config(state=tk.NORMAL)
         self.console.delete(1.0, tk.END)
         self.console.config(state=tk.DISABLED)
+
+        self.report_display.config(state=tk.NORMAL)
+        self.report_display.delete(1.0, tk.END)
+        self.report_display.config(state=tk.DISABLED)
+
+        # Start progress bar
+        self.progress_bar.start(10)
 
         # Start processing in a separate thread
         threading.Thread(target=self._process_thread, daemon=True).start()
@@ -249,11 +319,9 @@ class PDFMetricsApp:
                 self.update_console(f"Found {len(pdf_files)} PDF files to process.\n")
 
                 if not pdf_files:
+                    self.update_console("\nNo PDF files found in the data directory.\n")
                     self.update_console(
-                        "\nNo PDF files found in the selected directory.\n"
-                    )
-                    self.update_console(
-                        "Please add PDF files to the directory or select a different directory.\n"
+                        "Please add PDF files to the 'data' folder and try again.\n"
                     )
                     return
 
@@ -263,7 +331,7 @@ class PDFMetricsApp:
                 folder_data = defaultdict(list)
 
                 # Process each PDF file
-                for pdf_path in pdf_files:
+                for i, pdf_path in enumerate(pdf_files):
                     try:
                         self.update_console(f"Processing: {pdf_path}\n")
 
@@ -279,6 +347,15 @@ class PDFMetricsApp:
 
                             # Add data to the folder's collection
                             folder_data[folder_path].append(data)
+
+                            # Update status with progress percentage
+                            progress_pct = int((i + 1) / len(pdf_files) * 100)
+                            self.root.after(
+                                0,
+                                lambda p=progress_pct: self.status_label.config(
+                                    text=f"Processing: {p}% complete ({i + 1}/{len(pdf_files)} files)"
+                                ),
+                            )
                         else:
                             self.update_console(
                                 f"Warning: No text extracted from {pdf_path}\n"
@@ -295,8 +372,18 @@ class PDFMetricsApp:
                     report_path = generate_folder_report(folder_data)
                     self.latest_report = os.path.abspath(report_path)
                     self.update_console(
-                        f"Generated folder metrics report: {self.latest_report}\n"
+                        f"\nGenerated folder metrics report: {self.latest_report}\n"
                     )
+
+                    # Read report content and display in the report panel
+                    try:
+                        with open(self.latest_report, "r") as f:
+                            report_content = f.read()
+                            self.root.after(
+                                0, lambda: self.update_report_display(report_content)
+                            )
+                    except Exception as e:
+                        self.update_console(f"Error reading report: {e}\n")
                 else:
                     self.update_console(
                         "No data was processed successfully. Report not generated.\n"
@@ -311,10 +398,12 @@ class PDFMetricsApp:
                     cwd=self.selected_dir,
                 )
 
+                output_lines = []
                 while True:
                     line = process.stdout.readline()
                     if not line and process.poll() is not None:
                         break
+                    output_lines.append(line)
                     self.update_console(line)
 
                 # Find the latest report file
@@ -328,6 +417,17 @@ class PDFMetricsApp:
                     if report_files:
                         self.latest_report = max(report_files, key=os.path.getmtime)
 
+                        # Read report content and display in the report panel
+                        try:
+                            with open(self.latest_report, "r") as f:
+                                report_content = f.read()
+                                self.root.after(
+                                    0,
+                                    lambda: self.update_report_display(report_content),
+                                )
+                        except Exception as e:
+                            self.update_console(f"Error reading report: {e}\n")
+
             self.update_console("\nProcessing complete!\n")
 
             # Enable the open report button if we have a report
@@ -339,12 +439,28 @@ class PDFMetricsApp:
         except Exception as e:
             self.update_console(f"Error during processing: {str(e)}\n")
         finally:
+            # Stop progress bar
+            self.root.after(0, self.progress_bar.stop)
+
             # Re-enable buttons
             self.root.after(0, lambda: self.process_button.config(state=tk.NORMAL))
-            self.root.after(0, lambda: self.select_dir_button.config(state=tk.NORMAL))
-            self.root.after(
-                0, lambda: self.status_label.config(text="Processing complete.")
-            )
+
+            # Update status
+            if self.latest_report:
+                self.root.after(
+                    0,
+                    lambda: self.status_label.config(
+                        text=f"Processing complete. Report generated at: {self.latest_report}"
+                    ),
+                )
+            else:
+                self.root.after(
+                    0,
+                    lambda: self.status_label.config(
+                        text="Processing complete. No report was generated."
+                    ),
+                )
+
             self.processing = False
 
     def open_report(self):
@@ -362,6 +478,18 @@ class PDFMetricsApp:
             subprocess.call(["open", self.latest_report])
         else:  # Linux
             subprocess.call(["xdg-open", self.latest_report])
+
+    def open_data_folder(self):
+        """Open the data folder in file explorer"""
+        if not os.path.exists(self.selected_dir):
+            os.makedirs(self.selected_dir, exist_ok=True)
+
+        if sys.platform == "win32":
+            os.startfile(self.selected_dir)
+        elif sys.platform == "darwin":  # macOS
+            subprocess.call(["open", self.selected_dir])
+        else:  # Linux
+            subprocess.call(["xdg-open", self.selected_dir])
 
     def on_closing(self):
         if self.processing:

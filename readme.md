@@ -1,91 +1,76 @@
 # PDF Metrics Analyzer
 
-PDF Metrics Analyzer is a tool for extracting and analyzing performance metrics from PDF test reports. It processes PDF files to extract key metrics such as FPS, bandwidth, and round-trip time (RTT), and generates comprehensive reports summarizing the data by folder.
+PDF Metrics Analyzer는 PDF 테스트 보고서에서 성능 지표를 추출하고 분석하는 도구입니다. PDF 파일을 처리하여 FPS, 대역폭, RTT(Round-Trip Time)와 같은 핵심 지표를 추출하고 폴더별로 포괄적인 보고서를 생성합니다.
 
-## Features
+## 주요 기능
 
-- Analyze multiple PDF reports containing performance metrics
-- Extract FPS, bandwidth, and RTT values
-- Generate folder-based average metrics
-- Create detailed markdown reports with summary tables
-- User-friendly GUI interface
+- 성능 지표가 포함된 다수의 PDF 보고서 분석
+- FPS, 대역폭, RTT 값 추출
+- 폴더 기반 평균 지표 생성
+- 요약 테이블이 포함된 상세 마크다운 보고서 생성
+- 사용자 친화적인 GUI 인터페이스
+- 진행 상황과 결과를 동시에 확인 가능
 
-## Installation
+## 설치 방법
 
-### Windows Users
+### Windows 사용자
 
-1. Download the latest release from the [Releases](../../releases) page
-2. Run the `PDFMetricsAnalyzer.exe` file - no installation required
-3. Create a `data` folder in the same directory as the executable (if not already present)
-4. Place your PDF files in the `data` folder or use the app to select a different folder
+1. [Releases](../../releases) 페이지에서 최신 버전을 다운로드하세요
+2. `PDFMetricsAnalyzer.exe` 파일을 실행하세요 - 설치 필요 없음
+3. 프로그램이 자동으로 `data` 폴더를 생성합니다
+4. PDF 파일을 `data` 폴더에 넣으세요
 
-### For Developers
+### 개발자를 위한 설치
 
-If you want to run the script from source:
+소스에서 스크립트를 실행하려면:
 
-1. Ensure you have Python 3.8 or later installed
-2. Clone this repository:
+1. Python 3.8 이상이 설치되어 있는지 확인하세요
+2. 이 저장소를 복제하세요:
    ```
    git clone https://github.com/yourusername/pdf-metrics-analyzer.git
    cd pdf-metrics-analyzer
    ```
-3. Install the required dependencies:
+3. 필요한 종속성을 설치하세요:
    ```
    pip install -r requirements.txt
    ```
-4. Create a `data` folder for your PDF files (this folder is excluded from the repository)
-5. Run the application:
+4. 애플리케이션을 실행하세요:
    ```
    python app.py
    ```
 
-## Usage
+## 사용 방법
 
-1. Launch the application
-2. Click "Select PDF Directory" to choose a folder containing your PDF test reports
-3. Click "Process PDF Files" to begin analysis
-4. Once processing is complete, click "Open Latest Report" to view the results
+1. 애플리케이션을 실행하세요
+2. PDF 파일을 data 폴더에 넣으세요 (데이터 폴더 버튼을 클릭하여 열 수 있음)
+3. "Process PDF Files" 버튼을 클릭하여 분석을 시작하세요
+4. 처리가 완료되면 오른쪽 패널에서 결과를 확인하세요
+5. 전체 상세 보고서를 보려면 "Open Full Report" 버튼을 클릭하세요
 
-## Report Format
+## 보고서 형식
 
-The generated report includes:
-- Summary table with folder averages for FPS, bandwidth, and RTT
-- Detailed breakdown of metrics for each file in each folder
+생성된 보고서는 다음을 포함합니다:
+- FPS, 대역폭, RTT에 대한 폴더 평균이 포함된 요약 테이블
+- 각 폴더의 각 파일에 대한 지표의 상세 내역
 
-## Building from Source
+## 소스에서 빌드하기
 
-To build the executable yourself:
+직접 실행 파일을 빌드하려면:
 
-1. Install PyInstaller:
+1. PyInstaller 설치:
    ```
    pip install pyinstaller
    ```
-2. Generate the icon:
+2. 아이콘 생성:
    ```
    python create_icon.py
    ```
-3. Build the executable:
+3. 실행 파일 빌드:
    ```
    pyinstaller --onefile --windowed --icon=app_icon.ico --name=PDFMetricsAnalyzer --add-data "main.py;." app.py
    ```
-4. The executable will be available in the `dist` folder
+4. 실행 파일은 `dist` 폴더에서 사용 가능합니다
 
-## Note on Data Files
+## 라이선스
 
-- The `data` folder is excluded from Git version control
-- You'll need to create the folder and add your PDF files after cloning the repository
-- This keeps the repository clean and avoids storing large binary files in Git
-
-## License
-
-This project is available under the MIT License. See the LICENSE file for more information.
-
-PDF 보고서 프로세서 사용 방법
-
-1. 'data' 폴더에 분석할 PDF 파일을 넣으세요.
-2. PDF_Report_Processor.exe를 더블클릭하여 실행하세요.
-3. 처리가 완료되면 'reports' 폴더에서 결과 보고서를 찾을 수 있습니다.
-
-주의사항:
-- 보고서는 마크다운(.md) 형식으로 생성됩니다.
-- 
+이 프로젝트는 MIT 라이선스에 따라 사용할 수 있습니다. 자세한 내용은 LICENSE 파일을 참조하세요.
