@@ -1,0 +1,68 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install -r requirements.txt
+        
+    - name: Generate app icon
+      run: |
+        python create_icon.py
+    
+    - name: Create sample data directory structure
+      run: |
+        mkdir -p data/sample
+        echo "This is a placeholder for testing the build process." > data/README.txt
+        
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --onefile --windowed --icon=app_icon.ico --name=PDFMetricsAnalyzer --add-data "main.py;." app.py
+        
+    - name: Upload executable as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: PDFMetricsAnalyzer
+        path: dist/PDFMetricsAnalyzer.exe
+        
+    - name: Create Release
+      id: create_release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/PDFMetricsAnalyzer.exe
+        asset_name: PDFMetricsAnalyzer.exe
+        asset_content_type: application/octet-stream 
