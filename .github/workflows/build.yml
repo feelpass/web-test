@@ -1,0 +1,92 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: 
+      - main
+      - 'release/*'  # release/ 형식의 브랜치일 때 실행 (예: release/1.0.0)
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 권한 설정 추가
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install -r requirements.txt
+        
+    - name: Create sample data directory structure
+      run: |
+        mkdir -p data/sample
+        echo "This is a placeholder for testing the build process." > data/README.txt
+        
+    - name: Extract version from branch name
+      if: startsWith(github.ref, 'refs/heads/release/')
+      id: extract_version
+      shell: bash
+      run: |
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        VERSION=${BRANCH_NAME#release/}
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Set default version for non-release branches
+      if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+      run: echo "VERSION=dev" >> $GITHUB_ENV
+        
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --onefile --name=PDFMetricsAnalyzer-${{ env.VERSION }} main.py
+    
+    - name: Display file size
+      shell: pwsh
+      run: |
+        $filePath = "dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe"
+        $fileInfo = Get-Item $filePath
+        $fileSizeMB = "{0:N2}" -f ($fileInfo.Length / 1MB)
+        echo "File: $filePath"
+        echo "Size: $fileSizeMB MB"
+        
+    - name: Analyze executable size
+      shell: pwsh
+      run: |
+        echo "Checking PyInstaller options that might reduce the file size:"
+        echo "1. Current build uses --onefile which includes all dependencies"
+        echo "2. Consider using --noupx=False to enable UPX compression"
+        
+    - name: Upload executable as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PDFMetricsAnalyzer-${{ env.VERSION }}
+        path: dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
+
+    - name: Create Release
+      id: create_release
+      if: startsWith(github.ref, 'refs/heads/release/')
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.extract_version.outputs.version }}
+        tag_name: v${{ steps.extract_version.outputs.version }}
+        draft: false
+        prerelease: false
+        files: |
+          dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
