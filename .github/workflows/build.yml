@@ -36,27 +36,41 @@ jobs:
         mkdir -p data/sample
         echo "This is a placeholder for testing the build process." > data/README.txt
         
+    - name: Extract version from branch name
+      if: startsWith(github.ref, 'refs/heads/release/')
+      id: extract_version
+      shell: bash
+      run: |
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        VERSION=${BRANCH_NAME#release/}
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Set default version for non-release branches
+      if: "!startsWith(github.ref, 'refs/heads/release/')"
+      run: echo "VERSION=dev" >> $GITHUB_ENV
+        
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --name=PDFMetricsAnalyzer main.py
+        pyinstaller --onefile --name=PDFMetricsAnalyzer-${{ env.VERSION }} main.py
         
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: PDFMetricsAnalyzer
-        path: dist/PDFMetricsAnalyzer.exe
+        name: PDFMetricsAnalyzer-${{ env.VERSION }}
+        path: dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
 
     - name: Create Release
       id: create_release
       if: startsWith(github.ref, 'refs/heads/release/')
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ github.ref_name }}
-        tag_name: release-${{ github.run_number }}
+        name: Release ${{ steps.extract_version.outputs.version }}
+        tag_name: v${{ steps.extract_version.outputs.version }}
         draft: false
         prerelease: false
         files: |
-          dist/PDFMetricsAnalyzer.exe
+          dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
