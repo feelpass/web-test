@@ -2,9 +2,9 @@ name: Build Windows Executable
 
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*'  # 태그 형식이 v로 시작하는 경우에 실행 (예: v1.0.0)
+    branches: 
+      - main
+      - 'release/*'  # release/ 형식의 브랜치일 때 실행 (예: release/1.0.0)
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -48,10 +48,11 @@ jobs:
 
     - name: Create Release
       id: create_release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/heads/release/')
       uses: softprops/action-gh-release@v1
       with:
         name: Release ${{ github.ref_name }}
+        tag_name: release-${{ github.run_number }}
         draft: false
         prerelease: false
         files: |
