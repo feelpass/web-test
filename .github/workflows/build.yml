@@ -44,13 +44,3 @@ jobs:
         name: PDFMetricsAnalyzer
         path: dist/PDFMetricsAnalyzer.exe
         
-    - name: Create Release
-      id: create_release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ./dist/PDFMetricsAnalyzer.exe
-        tag_name: v${{ github.run_number }}
-        name: Release v${{ github.run_number }}
-        draft: false
-        prerelease: false 
