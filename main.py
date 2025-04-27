@@ -545,7 +545,8 @@ def main():
 
             # Extract text from PDF
             text = extract_text_from_pdf(pdf_path)
-
+            text = re.sub(r"\s*\.\s*", ".", text)
+            print(text)
             if text:
                 # Parse content to get metrics
                 data = parse_pdf_content(text, pdf_path)
