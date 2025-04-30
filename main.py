@@ -13,6 +13,10 @@ def find_pdf_files(root_dir="."):
     pdf_files = []
 
     for dirpath, _, filenames in os.walk(root_dir):
+        # Skip directories that start with underscore
+        if os.path.basename(dirpath).startswith("_"):
+            continue
+
         for filename in filenames:
             if filename.lower().endswith(".pdf"):
                 pdf_files.append(os.path.join(dirpath, filename))
@@ -674,7 +678,6 @@ def main():
             # Extract text from PDF
             text = extract_text_from_pdf(pdf_path)
             text = re.sub(r"\s*\.\s*", ".", text)
-            print(text)
             if text:
                 # Parse content to get metrics
                 data = parse_pdf_content(text, pdf_path)
