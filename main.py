@@ -6,6 +6,7 @@ import PyPDF2
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+import sys
 
 
 def find_pdf_files(root_dir="."):
@@ -13,23 +14,23 @@ def find_pdf_files(root_dir="."):
     pdf_files = []
 
     try:
-        for dirpath, dirnames, filenames in os.walk(root_dir):
-            # 현재 디렉토리의 절대 경로를 정규화
-            abs_dirpath = os.path.abspath(dirpath)
+        # 검색 시작 디렉토리의 절대 경로를 구함
+        root_abs = os.path.abspath(root_dir)
 
-            # 각 경로 부분을 체크
-            path_parts = abs_dirpath.split(os.sep)
+        for dirpath, dirnames, filenames in os.walk(root_abs):
+            # 현재 디렉토리가 root_dir의 하위 디렉토리인지 확인
+            rel_path = os.path.relpath(dirpath, root_abs)
+            if rel_path == ".":
+                path_parts = []
+            else:
+                # Windows에서도 올바르게 동작하도록 normpath 사용
+                path_parts = os.path.normpath(rel_path).split(os.sep)
+
+            # 언더스코어로 시작하는 디렉토리 건너뛰기
             should_skip = False
-
-            # 루트 디렉토리는 건너뛰기 체크에서 제외
-            root_abs = os.path.abspath(root_dir)
-            root_parts = root_abs.split(os.sep)
-            check_parts = path_parts[len(root_parts) :]
-
-            # 실제 하위 디렉토리만 체크
-            for part in check_parts:
+            for part in path_parts:
                 if part.startswith("_"):
-                    print(f"Skipping directory with underscore: {dirpath}")
+                    print(f"Skipping directory: {rel_path}")
                     should_skip = True
                     break
 
@@ -39,14 +40,12 @@ def find_pdf_files(root_dir="."):
 
             for filename in filenames:
                 if filename.lower().endswith(".pdf"):
-                    full_path = os.path.join(dirpath, filename)
-                    # 상대 경로로 변환
-                    try:
-                        rel_path = os.path.relpath(full_path, root_dir)
-                        pdf_files.append(rel_path)
-                    except ValueError as e:
-                        print(f"Error converting path {full_path}: {e}")
-                        continue
+                    # 상대 경로 생성
+                    if rel_path == ".":
+                        rel_file_path = filename
+                    else:
+                        rel_file_path = os.path.join(rel_path, filename)
+                    pdf_files.append(rel_file_path)
 
         return pdf_files
     except Exception as e:
@@ -307,9 +306,8 @@ def generate_folder_report(folder_data):
             print(f"Error creating reports directory: {e}")
             reports_dir = "."  # 실패시 현재 디렉토리에 생성
 
-        # 파일명에 타임스탬프 추가하여 중복 방지
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        md_filename = os.path.join(reports_dir, f"folder_metrics_report_{timestamp}.md")
+        # 고정된 파일명 사용
+        md_filename = os.path.join(reports_dir, "folder_metrics_report.md")
 
         # Prepare report content
         report_content = "# Folder Metrics Report\n\n"
@@ -737,41 +735,51 @@ def main():
     """Main function to process PDF files and generate folder-based report."""
     print("Starting PDF report processing...")
 
-    # Get the script directory and change to it
     try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        os.chdir(script_dir)
-    except Exception as e:
-        print(f"Error changing to script directory: {e}")
-        # Continue with current directory if change fails
+        # 스크립트 실행 위치 확인
+        if hasattr(sys, "_MEIPASS"):  # PyInstaller로 실행된 경우
+            script_dir = sys._MEIPASS
+        else:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Find all PDF files in current directory and all subdirectories
-    pdf_files = find_pdf_files(".")
-    if not pdf_files:
-        print("No PDF files found.")
-        print("\n프로그램이 완료되었습니다. 아무 키나 누르면 종료됩니다...")
-        try:
-            import msvcrt
+        # 현재 작업 디렉토리 출력
+        current_dir = os.getcwd()
+        print(f"Current working directory: {current_dir}")
+        print(f"Script directory: {script_dir}")
 
-            msvcrt.getch()
-        except ImportError:
-            input("아무 키나 누르세요...")
-        return
+        # PDF 파일 검색
+        pdf_files = find_pdf_files(".")
+        if not pdf_files:
+            print("No PDF files found.")
+            print("\n프로그램이 완료되었습니다. 아무 키나 누르면 종료됩니다...")
+            try:
+                import msvcrt
 
-    print(f"Found {len(pdf_files)} PDF files to process.")
+                msvcrt.getch()
+            except ImportError:
+                input("아무 키나 누르세요...")
+            return
 
-    # Group data by folder
-    folder_data = defaultdict(list)
+        print(f"\nFound {len(pdf_files)} PDF files to process:")
+        for pdf_file in pdf_files:
+            print(f"  - {pdf_file}")
 
-    # Process each PDF file
-    for pdf_path in pdf_files:
-        try:
-            print(f"Processing: {pdf_path}")
+        # Group data by folder
+        folder_data = defaultdict(list)
 
-            # Extract text from PDF
-            text = extract_text_from_pdf(pdf_path)
-            text = re.sub(r"\s*\.\s*", ".", text)
-            if text:
+        # Process each PDF file
+        for pdf_path in pdf_files:
+            try:
+                print(f"\nProcessing: {pdf_path}")
+
+                # Extract text from PDF
+                text = extract_text_from_pdf(pdf_path)
+                if not text:
+                    print(f"Warning: No text extracted from {pdf_path}")
+                    continue
+
+                text = re.sub(r"\s*\.\s*", ".", text)
+
                 # Parse content to get metrics
                 data = parse_pdf_content(text, pdf_path)
 
@@ -780,24 +788,30 @@ def main():
 
                 # Add data to the folder's collection
                 folder_data[folder_path].append(data)
+
+            except Exception as e:
+                print(f"Error processing {pdf_path}: {e}")
+
+        # Generate report of folder metrics
+        if folder_data:
+            report_path = generate_folder_report(folder_data)
+            if report_path:
+                print(f"\nGenerated folder metrics report: {report_path}")
             else:
-                print(f"Warning: No text extracted from {pdf_path}")
-
-        except Exception as e:
-            print(f"Error processing {pdf_path}: {e}")
-
-    # Generate report of folder metrics
-    if folder_data:
-        report_path = generate_folder_report(folder_data)
-        if report_path:
-            print(f"Generated folder metrics report: {report_path}")
+                print("\nReport generation failed.")
         else:
-            print("Report generation failed.")
-    else:
-        print("No data was processed successfully. Report not generated.")
+            print("\nNo data was processed successfully. Report not generated.")
 
-    print("\nProcessing complete! Press Enter to exit...")
-    input()  # Keep console window open until user presses Enter
+    except Exception as e:
+        print(f"\nError in main process: {e}")
+
+    print("\n프로그램이 완료되었습니다. 아무 키나 누르면 종료됩니다...")
+    try:
+        import msvcrt
+
+        msvcrt.getch()
+    except ImportError:
+        input("아무 키나 누르세요...")
 
 
 if __name__ == "__main__":
