@@ -306,8 +306,14 @@ def generate_folder_report(folder_data):
             print(f"Error creating reports directory: {e}")
             reports_dir = "."  # 실패시 현재 디렉토리에 생성
 
-        # 고정된 파일명 사용
-        md_filename = os.path.join(reports_dir, "folder_metrics_report.md")
+        # 현재 시간을 이용한 타임스탬프 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 두 가지 파일명 생성: 고정 파일명과 타임스탬프 포함 파일명
+        fixed_md_filename = os.path.join(reports_dir, "folder_metrics_report.md")
+        timestamped_md_filename = os.path.join(
+            reports_dir, f"folder_metrics_report_{timestamp}.md"
+        )
 
         # Prepare report content
         report_content = "# Folder Metrics Report\n\n"
@@ -716,19 +722,26 @@ def generate_folder_report(folder_data):
 
             report_content += "\n"
 
-        # Write report to markdown file with proper error handling
+        # Write report to both files with proper error handling
         try:
-            with open(md_filename, "w", encoding="utf-8") as f:
+            # 고정 파일명 버전 저장
+            with open(fixed_md_filename, "w", encoding="utf-8") as f:
                 f.write(report_content)
-            print(f"Generated folder metrics report: {md_filename}")
-            return md_filename
+            print(f"Generated fixed filename report: {fixed_md_filename}")
+
+            # 타임스탬프 포함 버전 저장
+            with open(timestamped_md_filename, "w", encoding="utf-8") as f:
+                f.write(report_content)
+            print(f"Generated timestamped report: {timestamped_md_filename}")
+
+            return fixed_md_filename, timestamped_md_filename
         except Exception as e:
-            print(f"Error writing report file: {e}")
-            return None
+            print(f"Error writing report files: {e}")
+            return None, None
 
     except Exception as e:
         print(f"Error generating report: {e}")
-        return None
+        return None, None
 
 
 def main():

@@ -369,21 +369,29 @@ class PDFMetricsApp:
 
                 # Generate report of folder metrics
                 if folder_data:
-                    report_path = generate_folder_report(folder_data)
-                    self.latest_report = os.path.abspath(report_path)
-                    self.update_console(
-                        f"\nGenerated folder metrics report: {self.latest_report}\n"
+                    fixed_report_path, timestamped_report_path = generate_folder_report(
+                        folder_data
                     )
+                    if fixed_report_path and timestamped_report_path:
+                        self.latest_report = os.path.abspath(fixed_report_path)
+                        self.update_console(
+                            f"\nGenerated reports:\n"
+                            f"1. Fixed filename report: {os.path.abspath(fixed_report_path)}\n"
+                            f"2. Timestamped report: {os.path.abspath(timestamped_report_path)}\n"
+                        )
 
-                    # Read report content and display in the report panel
-                    try:
-                        with open(self.latest_report, "r") as f:
-                            report_content = f.read()
-                            self.root.after(
-                                0, lambda: self.update_report_display(report_content)
-                            )
-                    except Exception as e:
-                        self.update_console(f"Error reading report: {e}\n")
+                        # Read report content and display in the report panel
+                        try:
+                            with open(self.latest_report, "r") as f:
+                                report_content = f.read()
+                                self.root.after(
+                                    0,
+                                    lambda: self.update_report_display(report_content),
+                                )
+                        except Exception as e:
+                            self.update_console(f"Error reading report: {e}\n")
+                    else:
+                        self.update_console("Failed to generate reports.\n")
                 else:
                     self.update_console(
                         "No data was processed successfully. Report not generated.\n"
