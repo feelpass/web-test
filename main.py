@@ -7,6 +7,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
+import argparse
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 
 def find_pdf_files(root_dir="."):
@@ -744,8 +748,268 @@ def generate_folder_report(folder_data):
         return None, None
 
 
+def parse_folder_path(path):
+    """Parse folder path into components."""
+    # Split the path and get the relevant part (after any prefix folders)
+    parts = path.split(os.sep)
+
+    # Find the part that matches the date pattern (YYYYMMDD)
+    date_pattern = re.compile(r"^\d{8}$")
+    date_index = -1
+    for i, part in enumerate(parts):
+        if date_pattern.match(part):
+            date_index = i
+            break
+
+    # If date pattern is found, use components from that point
+    if date_index != -1:
+        components = parts[date_index:]
+    else:
+        # If no date pattern found, return empty values
+        return {
+            "date": "",
+            "city": "",
+            "area": "",
+            "region": "",
+            "carrier": "",
+            "network": "",
+            "game": "",
+            "device": "",
+        }
+
+    # Initialize result with empty values
+    result = {
+        "date": "",
+        "city": "",
+        "area": "",
+        "region": "",
+        "carrier": "",
+        "network": "",
+        "game": "",
+        "device": "",
+    }
+
+    # Get the number of components
+    num_components = len(components)
+
+    # Always try to fill from the start
+    if num_components > 0:
+        result["date"] = components[0]
+    if num_components > 1:
+        result["city"] = components[1]
+    if num_components > 2:
+        result["area"] = components[2]
+    if num_components > 3:
+        result["region"] = components[3]
+    if num_components > 4:
+        result["carrier"] = components[4]
+
+    # Handle the remaining components based on whether we find a network type
+    if num_components > 5:
+        network = components[5].lower()
+        if network in ["4g", "5g"]:
+            result["network"] = network.upper()
+            if num_components > 6:
+                result["game"] = components[6]
+            if num_components > 7:
+                result["device"] = components[7]
+        elif network == "wifi":
+            result["network"] = ""  # Leave empty for wifi
+            if num_components > 6:
+                result["game"] = components[6]
+            if num_components > 7:
+                result["device"] = components[7]
+        else:
+            # If not a recognized network type, assume it's the game name
+            result["game"] = components[5]
+            if num_components > 6:
+                result["device"] = components[6]
+
+    return result
+
+
+def export_to_excel(folder_data, reports_dir, timestamp):
+    """Export data to Excel files - one for detailed data and one for averages."""
+    try:
+        # Create Excel files
+        details_filename = os.path.join(
+            reports_dir, f"metrics_details_{timestamp}.xlsx"
+        )
+        averages_filename = os.path.join(
+            reports_dir, f"metrics_averages_{timestamp}.xlsx"
+        )
+
+        # Create workbook for detailed data
+        wb_details = Workbook()
+        ws_details = wb_details.active
+        ws_details.title = "Metrics Details"
+
+        # Set up headers for details
+        headers = [
+            "Folder",
+            "Filename",
+            "Date",
+            "City",
+            "Area",
+            "Region",
+            "Carrier",
+            "Network Type",
+            "Game",
+            "Device",
+            "FPS",
+            "Bandwidth (Mbps)",
+            "RTT (ms)",
+            "Temperature",
+            "Response Time",
+            "Data Usage",
+        ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws_details.cell(row=1, column=col)
+            cell.value = header
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(
+                start_color="CCCCCC", end_color="CCCCCC", fill_type="solid"
+            )
+            cell.alignment = Alignment(horizontal="center")
+
+        # Prepare sorted data
+        all_data = []
+        for folder, files in folder_data.items():
+            # Parse folder path
+            path_components = parse_folder_path(folder)
+
+            for file_data in files:
+                data = {
+                    "folder": folder,
+                    "filename": file_data.get("filename", "Unknown"),
+                    "date": path_components["date"],
+                    "city": path_components["city"],
+                    "area": path_components["area"],
+                    "region": path_components["region"],
+                    "carrier": path_components["carrier"],
+                    "network": path_components["network"],
+                    "game": path_components["game"],
+                    "device": path_components["device"],
+                    "fps": file_data.get("fps", -1),
+                    "bandwidth": file_data.get("bandwidth", -1),
+                    "rtt": file_data.get("rtt", -1),
+                    "temperature": "",  # Empty placeholder
+                    "response_time": "",  # Empty placeholder
+                    "data_usage": "",  # Empty placeholder
+                }
+                all_data.append(data)
+
+        # Sort data by folder name
+        all_data.sort(key=lambda x: x["folder"].lower())
+
+        # Fill details data
+        row = 2
+        for data in all_data:
+            ws_details.cell(row=row, column=1, value=data["folder"])
+            ws_details.cell(row=row, column=2, value=data["filename"])
+            ws_details.cell(row=row, column=3, value=data["date"])
+            ws_details.cell(row=row, column=4, value=data["city"])
+            ws_details.cell(row=row, column=5, value=data["area"])
+            ws_details.cell(row=row, column=6, value=data["region"])
+            ws_details.cell(row=row, column=7, value=data["carrier"])
+            ws_details.cell(row=row, column=8, value=data["network"])
+            ws_details.cell(row=row, column=9, value=data["game"])
+            ws_details.cell(row=row, column=10, value=data["device"])
+            ws_details.cell(row=row, column=11, value=data["fps"])
+            ws_details.cell(row=row, column=12, value=data["bandwidth"])
+            ws_details.cell(row=row, column=13, value=data["rtt"])
+            ws_details.cell(row=row, column=14, value=data["temperature"])
+            ws_details.cell(row=row, column=15, value=data["response_time"])
+            ws_details.cell(row=row, column=16, value=data["data_usage"])
+            row += 1
+
+        # Auto-adjust column widths
+        for col in range(1, len(headers) + 1):
+            ws_details.column_dimensions[get_column_letter(col)].auto_size = True
+
+        # Create workbook for averages
+        wb_averages = Workbook()
+        ws_averages = wb_averages.active
+        ws_averages.title = "Folder Averages"
+
+        # Set up headers for averages
+        avg_headers = [
+            "Folder",
+            "Average FPS",
+            "Average Bandwidth (Mbps)",
+            "Average RTT (ms)",
+        ]
+        for col, header in enumerate(avg_headers, 1):
+            cell = ws_averages.cell(row=1, column=col)
+            cell.value = header
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(
+                start_color="CCCCCC", end_color="CCCCCC", fill_type="solid"
+            )
+            cell.alignment = Alignment(horizontal="center")
+
+        # Sort folders for averages
+        sorted_folders = sorted(folder_data.keys(), key=str.lower)
+
+        # Calculate and fill averages data
+        row = 2
+        for folder in sorted_folders:
+            files = folder_data[folder]
+            fps_values = [f.get("fps", -1) for f in files if f.get("fps", -1) > 0]
+            bw_values = [
+                f.get("bandwidth", -1) for f in files if f.get("bandwidth", -1) > 0
+            ]
+            rtt_values = [f.get("rtt", -1) for f in files if f.get("rtt", -1) > 0]
+
+            if len(fps_values) >= 3:
+                fps_values = sorted(fps_values)[1:-1]
+            if len(bw_values) >= 3:
+                bw_values = sorted(bw_values)[1:-1]
+            if len(rtt_values) >= 3:
+                rtt_values = sorted(rtt_values)[1:-1]
+
+            avg_fps = sum(fps_values) / len(fps_values) if fps_values else -1
+            avg_bw = sum(bw_values) / len(bw_values) if bw_values else -1
+            avg_rtt = sum(rtt_values) / len(rtt_values) if rtt_values else -1
+
+            ws_averages.cell(row=row, column=1, value=folder)
+            ws_averages.cell(
+                row=row, column=2, value=round(avg_fps, 2) if avg_fps > 0 else "N/A"
+            )
+            ws_averages.cell(
+                row=row, column=3, value=round(avg_bw, 2) if avg_bw > 0 else "N/A"
+            )
+            ws_averages.cell(
+                row=row, column=4, value=round(avg_rtt, 2) if avg_rtt > 0 else "N/A"
+            )
+            row += 1
+
+        # Auto-adjust column widths for averages
+        for col in range(1, len(avg_headers) + 1):
+            ws_averages.column_dimensions[get_column_letter(col)].auto_size = True
+
+        # Save both workbooks
+        wb_details.save(details_filename)
+        wb_averages.save(averages_filename)
+
+        print(f"\nExcel files generated:")
+        print(f"Details: {details_filename}")
+        print(f"Averages: {averages_filename}")
+
+        return details_filename, averages_filename
+    except Exception as e:
+        print(f"Error generating Excel files: {e}")
+        return None, None
+
+
 def main():
     """Main function to process PDF files and generate folder-based report."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="PDF Metrics Analyzer")
+    parser.add_argument("--excel", action="store_true", help="Generate Excel reports")
+    args = parser.parse_args()
+
     print("Starting PDF report processing...")
 
     try:
@@ -805,15 +1069,36 @@ def main():
             except Exception as e:
                 print(f"Error processing {pdf_path}: {e}")
 
-        # Generate report of folder metrics
+        # Generate reports
         if folder_data:
-            report_path = generate_folder_report(folder_data)
-            if report_path:
-                print(f"\nGenerated folder metrics report: {report_path}")
+            # Generate markdown report
+            fixed_report_path, timestamped_report_path = generate_folder_report(
+                folder_data
+            )
+
+            # Generate Excel reports if requested
+            if args.excel:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                details_excel, averages_excel = export_to_excel(
+                    folder_data, "reports", timestamp
+                )
+                if details_excel and averages_excel:
+                    print(f"\nExcel reports generated:")
+                    print(f"1. Details report: {details_excel}")
+                    print(f"2. Averages report: {averages_excel}")
+                else:
+                    print("\nFailed to generate Excel reports.")
+
+            if fixed_report_path and timestamped_report_path:
+                print(f"\nGenerated markdown reports:")
+                print(f"1. Fixed filename report: {os.path.abspath(fixed_report_path)}")
+                print(
+                    f"2. Timestamped report: {os.path.abspath(timestamped_report_path)}"
+                )
             else:
-                print("\nReport generation failed.")
+                print("\nMarkdown report generation failed.")
         else:
-            print("\nNo data was processed successfully. Report not generated.")
+            print("\nNo data was processed successfully. Reports not generated.")
 
     except Exception as e:
         print(f"\nError in main process: {e}")
