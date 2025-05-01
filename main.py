@@ -11,6 +11,7 @@ import argparse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+import markdown
 
 
 def find_pdf_files(root_dir="."):
@@ -313,11 +314,27 @@ def generate_folder_report(folder_data):
         # 현재 시간을 이용한 타임스탬프 생성
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # 두 가지 파일명 생성: 고정 파일명과 타임스탬프 포함 파일명
+        # 파일명 생성: 고정 파일명과 타임스탬프 포함 파일명 (md와 html)
         fixed_md_filename = os.path.join(reports_dir, "folder_metrics_report.md")
         timestamped_md_filename = os.path.join(
             reports_dir, f"folder_metrics_report_{timestamp}.md"
         )
+        fixed_html_filename = os.path.join(reports_dir, "folder_metrics_report.html")
+        timestamped_html_filename = os.path.join(
+            reports_dir, f"folder_metrics_report_{timestamp}.html"
+        )
+
+        # HTML 스타일 정의
+        html_style = """
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+            table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            h1, h2 { color: #333; }
+        </style>
+        """
 
         # Prepare report content
         report_content = "# Folder Metrics Report\n\n"
@@ -726,26 +743,42 @@ def generate_folder_report(folder_data):
 
             report_content += "\n"
 
-        # Write report to both files with proper error handling
+        # Write reports with proper error handling
         try:
-            # 고정 파일명 버전 저장
+            # Save Markdown reports
             with open(fixed_md_filename, "w", encoding="utf-8") as f:
                 f.write(report_content)
-            print(f"Generated fixed filename report: {fixed_md_filename}")
+            print(f"Generated fixed filename markdown report: {fixed_md_filename}")
 
-            # 타임스탬프 포함 버전 저장
             with open(timestamped_md_filename, "w", encoding="utf-8") as f:
                 f.write(report_content)
-            print(f"Generated timestamped report: {timestamped_md_filename}")
+            print(f"Generated timestamped markdown report: {timestamped_md_filename}")
 
-            return fixed_md_filename, timestamped_md_filename
+            # Convert to HTML and save
+            html_content = markdown.markdown(report_content, extensions=["tables"])
+            html_full_content = f"<!DOCTYPE html><html><head>{html_style}</head><body>{html_content}</body></html>"
+
+            with open(fixed_html_filename, "w", encoding="utf-8") as f:
+                f.write(html_full_content)
+            print(f"Generated fixed filename HTML report: {fixed_html_filename}")
+
+            with open(timestamped_html_filename, "w", encoding="utf-8") as f:
+                f.write(html_full_content)
+            print(f"Generated timestamped HTML report: {timestamped_html_filename}")
+
+            return (
+                fixed_md_filename,
+                timestamped_md_filename,
+                fixed_html_filename,
+                timestamped_html_filename,
+            )
         except Exception as e:
             print(f"Error writing report files: {e}")
-            return None, None
+            return None, None, None, None
 
     except Exception as e:
         print(f"Error generating report: {e}")
-        return None, None
+        return None, None, None, None
 
 
 def parse_folder_path(path):
@@ -1071,9 +1104,9 @@ def main():
 
         # Generate reports
         if folder_data:
-            # Generate markdown report
-            fixed_report_path, timestamped_report_path = generate_folder_report(
-                folder_data
+            # Generate markdown and HTML reports
+            fixed_md, timestamped_md, fixed_html, timestamped_html = (
+                generate_folder_report(folder_data)
             )
 
             # Generate Excel reports if requested
@@ -1089,14 +1122,18 @@ def main():
                 else:
                     print("\nFailed to generate Excel reports.")
 
-            if fixed_report_path and timestamped_report_path:
-                print(f"\nGenerated markdown reports:")
-                print(f"1. Fixed filename report: {os.path.abspath(fixed_report_path)}")
+            if fixed_md and timestamped_md and fixed_html and timestamped_html:
+                print(f"\nGenerated reports:")
+                print(f"1. Fixed filename markdown report: {os.path.abspath(fixed_md)}")
                 print(
-                    f"2. Timestamped report: {os.path.abspath(timestamped_report_path)}"
+                    f"2. Timestamped markdown report: {os.path.abspath(timestamped_md)}"
+                )
+                print(f"3. Fixed filename HTML report: {os.path.abspath(fixed_html)}")
+                print(
+                    f"4. Timestamped HTML report: {os.path.abspath(timestamped_html)}"
                 )
             else:
-                print("\nMarkdown report generation failed.")
+                print("\nReport generation failed.")
         else:
             print("\nNo data was processed successfully. Reports not generated.")
 
