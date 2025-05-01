@@ -478,32 +478,6 @@ def generate_folder_report(folder_data):
                         plots_base64[metric] = get_plot_base64(plt.gcf())
                     plt.close()
 
-                # 3. Correlation heatmap
-                plt.figure(figsize=(10, 8))
-                correlation_data = {
-                    "FPS": df["avg_fps"].values,
-                    "Bandwidth": df["avg_bandwidth"].values,
-                    "RTT": df["avg_rtt"].values,
-                }
-                correlation_df = pd.DataFrame(correlation_data)
-                correlation_matrix = correlation_df.corr()
-
-                mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
-                sns.heatmap(
-                    correlation_matrix,
-                    mask=mask,
-                    annot=True,
-                    cmap="coolwarm",
-                    vmin=-1,
-                    vmax=1,
-                    square=True,
-                    fmt=".2f",
-                )
-                plt.title("Correlation between Performance Metrics")
-                plt.tight_layout()
-                plots_base64["correlation"] = get_plot_base64(plt.gcf())
-                plt.close()
-
         except Exception as e:
             print(f"Error generating plots: {e}")
 
@@ -528,16 +502,11 @@ def generate_folder_report(folder_data):
                 <h3>RTT Distribution</h3>
                 <img src="data:image/png;base64,{}" alt="RTT Distribution">
             </div>
-            <div class="chart-container">
-                <h3>Correlation Heatmap</h3>
-                <img src="data:image/png;base64,{}" alt="Correlation Heatmap">
-            </div>
             """.format(
                 plots_base64.get("averages", ""),
                 plots_base64.get("fps_values", ""),
                 plots_base64.get("bandwidth_values", ""),
                 plots_base64.get("rtt_values", ""),
-                plots_base64.get("correlation", ""),
             )
 
         report_content += "## Summary by Folder\n\n"
@@ -1399,34 +1368,6 @@ def generate_performance_plots(folder_data, timestamp):
                     dpi=300,
                 )
             plt.close()
-
-        # 3. Correlation heatmap
-        plt.figure(figsize=(10, 8))
-        correlation_data = {
-            "FPS": df["avg_fps"].values,
-            "Bandwidth": df["avg_bandwidth"].values,
-            "RTT": df["avg_rtt"].values,
-        }
-        correlation_df = pd.DataFrame(correlation_data)
-        correlation_matrix = correlation_df.corr()
-
-        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
-        sns.heatmap(
-            correlation_matrix,
-            mask=mask,
-            annot=True,
-            cmap="coolwarm",
-            vmin=-1,
-            vmax=1,
-            square=True,
-            fmt=".2f",
-        )
-        plt.title("Correlation between Performance Metrics")
-        plt.tight_layout()
-        plt.savefig(
-            os.path.join(plots_dir, f"correlation_heatmap_{timestamp}.png"), dpi=300
-        )
-        plt.close()
 
         print(f"\nGenerated performance plots in {plots_dir}/")
 
