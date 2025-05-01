@@ -877,6 +877,10 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         ws_details = wb_details.active
         ws_details.title = "Metrics Details"
 
+        # Define alternating colors (light pastel colors)
+        color1 = "FFFFFF"  # White
+        color2 = "F5F5F5"  # Very light gray
+
         # Set up headers for details
         headers = [
             "Folder",
@@ -936,9 +940,26 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         # Sort data by folder name
         all_data.sort(key=lambda x: x["folder"].lower())
 
-        # Fill details data
+        # Fill details data with alternating colors
         row = 2
+        current_folder = None
+        color_toggle = True  # True for color1, False for color2
+
         for data in all_data:
+            # Check if folder changed
+            if current_folder != data["folder"]:
+                current_folder = data["folder"]
+                color_toggle = not color_toggle  # Switch color for new folder
+
+            # Apply background color to entire row
+            fill_color = color1 if color_toggle else color2
+            for col in range(1, len(headers) + 1):
+                cell = ws_details.cell(row=row, column=col)
+                cell.fill = PatternFill(
+                    start_color=fill_color, end_color=fill_color, fill_type="solid"
+                )
+
+            # Fill data
             ws_details.cell(row=row, column=1, value=data["folder"])
             ws_details.cell(row=row, column=2, value=data["filename"])
             ws_details.cell(row=row, column=3, value=data["date"])
@@ -985,9 +1006,19 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         # Sort folders for averages
         sorted_folders = sorted(folder_data.keys(), key=str.lower)
 
-        # Calculate and fill averages data
+        # Calculate and fill averages data with alternating colors
         row = 2
+        color_toggle = True  # Reset color toggle for averages sheet
+
         for folder in sorted_folders:
+            # Apply background color to entire row
+            fill_color = color1 if color_toggle else color2
+            for col in range(1, len(avg_headers) + 1):
+                cell = ws_averages.cell(row=row, column=col)
+                cell.fill = PatternFill(
+                    start_color=fill_color, end_color=fill_color, fill_type="solid"
+                )
+
             files = folder_data[folder]
             fps_values = [f.get("fps", -1) for f in files if f.get("fps", -1) > 0]
             bw_values = [
@@ -1016,7 +1047,9 @@ def export_to_excel(folder_data, reports_dir, timestamp):
             ws_averages.cell(
                 row=row, column=4, value=round(avg_rtt, 2) if avg_rtt > 0 else "N/A"
             )
+
             row += 1
+            color_toggle = not color_toggle  # Switch color for next folder
 
         # Auto-adjust column widths for averages
         for col in range(1, len(avg_headers) + 1):
