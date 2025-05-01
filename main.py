@@ -5,6 +5,7 @@ from collections import defaultdict
 import PyPDF2
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from datetime import datetime
 import sys
 import argparse
@@ -12,6 +13,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 import markdown
+import numpy as np
+import base64
+import io
 
 
 def find_pdf_files(root_dir="."):
@@ -333,6 +337,8 @@ def generate_folder_report(folder_data):
             th { background-color: #f2f2f2; }
             tr:nth-child(even) { background-color: #f9f9f9; }
             h1, h2 { color: #333; }
+            .chart-container { margin: 20px 0; text-align: center; }
+            .chart-container img { max-width: 100%; height: auto; }
         </style>
         """
 
@@ -341,6 +347,199 @@ def generate_folder_report(folder_data):
         report_content += (
             f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         )
+
+        # Generate performance plots and get their base64 encodings
+        plots_base64 = {}
+        try:
+            # Create plots directory
+            plots_dir = os.path.join("reports", "plots")
+            os.makedirs(plots_dir, exist_ok=True)
+
+            # Prepare data for plotting
+            plot_data = []
+            for folder, files in folder_data.items():
+                fps_values = []
+                bandwidth_values = []
+                rtt_values = []
+
+                for file_data in files:
+                    if isinstance(file_data, dict):
+                        if (
+                            "fps" in file_data
+                            and isinstance(file_data["fps"], (int, float))
+                            and file_data["fps"] > -1
+                        ):
+                            fps_values.append(file_data["fps"])
+                        if (
+                            "bandwidth" in file_data
+                            and isinstance(file_data["bandwidth"], (int, float))
+                            and file_data["bandwidth"] > -1
+                        ):
+                            bandwidth_values.append(file_data["bandwidth"])
+                        if (
+                            "rtt" in file_data
+                            and isinstance(file_data["rtt"], (int, float))
+                            and file_data["rtt"] > -1
+                        ):
+                            rtt_values.append(file_data["rtt"])
+
+                if fps_values or bandwidth_values or rtt_values:
+                    plot_data.append(
+                        {
+                            "folder": folder,
+                            "avg_fps": (
+                                float(np.mean(fps_values)) if fps_values else 0.0
+                            ),
+                            "avg_bandwidth": (
+                                float(np.mean(bandwidth_values))
+                                if bandwidth_values
+                                else 0.0
+                            ),
+                            "avg_rtt": (
+                                float(np.mean(rtt_values)) if rtt_values else 0.0
+                            ),
+                            "fps_values": fps_values,
+                            "bandwidth_values": bandwidth_values,
+                            "rtt_values": rtt_values,
+                        }
+                    )
+
+            if plot_data:
+                df = pd.DataFrame(plot_data)
+
+                # Function to save plot to base64
+                def get_plot_base64(fig):
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+                    buf.seek(0)
+                    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+                # 1. Bar plot for averages
+                plt.figure(figsize=(20, 10))
+                x = np.arange(len(df))
+                width = 0.25
+
+                plt.bar(x - width, df["avg_fps"], width, label="FPS", color="skyblue")
+                plt.bar(
+                    x,
+                    df["avg_bandwidth"],
+                    width,
+                    label="Bandwidth (Mbps)",
+                    color="lightgreen",
+                )
+                plt.bar(
+                    x + width, df["avg_rtt"], width, label="RTT (ms)", color="salmon"
+                )
+
+                plt.title("Average Performance Metrics by Folder")
+                plt.xlabel("Folder")
+                plt.ylabel("Value")
+                plt.xticks(x, df["folder"], rotation=45, ha="right")
+                plt.legend()
+                plt.grid(True, linestyle="--", alpha=0.3)
+                plt.tight_layout()
+                plots_base64["averages"] = get_plot_base64(plt.gcf())
+                plt.close()
+
+                # 2. Box plots
+                metrics = ["fps_values", "bandwidth_values", "rtt_values"]
+                titles = [
+                    "FPS Distribution",
+                    "Bandwidth Distribution (Mbps)",
+                    "RTT Distribution (ms)",
+                ]
+                colors = ["skyblue", "lightgreen", "salmon"]
+
+                for metric, title, color in zip(metrics, titles, colors):
+                    plt.figure(figsize=(20, 10))
+                    data_to_plot = [d[metric] for d in plot_data if d[metric]]
+                    if data_to_plot:
+                        bp = plt.boxplot(data_to_plot, patch_artist=True)
+                        for element in [
+                            "boxes",
+                            "whiskers",
+                            "fliers",
+                            "means",
+                            "medians",
+                            "caps",
+                        ]:
+                            plt.setp(bp[element], color="black")
+                        plt.setp(bp["boxes"], facecolor=color)
+
+                        plt.title(title)
+                        plt.xticks(
+                            range(1, len(data_to_plot) + 1),
+                            [d["folder"] for d in plot_data if d[metric]],
+                            rotation=45,
+                            ha="right",
+                        )
+                        plt.grid(True, linestyle="--", alpha=0.3)
+                        plt.tight_layout()
+                        plots_base64[metric] = get_plot_base64(plt.gcf())
+                    plt.close()
+
+                # 3. Correlation heatmap
+                plt.figure(figsize=(10, 8))
+                correlation_data = {
+                    "FPS": df["avg_fps"].values,
+                    "Bandwidth": df["avg_bandwidth"].values,
+                    "RTT": df["avg_rtt"].values,
+                }
+                correlation_df = pd.DataFrame(correlation_data)
+                correlation_matrix = correlation_df.corr()
+
+                mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+                sns.heatmap(
+                    correlation_matrix,
+                    mask=mask,
+                    annot=True,
+                    cmap="coolwarm",
+                    vmin=-1,
+                    vmax=1,
+                    square=True,
+                    fmt=".2f",
+                )
+                plt.title("Correlation between Performance Metrics")
+                plt.tight_layout()
+                plots_base64["correlation"] = get_plot_base64(plt.gcf())
+                plt.close()
+
+        except Exception as e:
+            print(f"Error generating plots: {e}")
+
+        # Add performance charts section to HTML
+        html_charts = ""
+        if plots_base64:
+            html_charts = """
+            <h2>Performance Charts</h2>
+            <div class="chart-container">
+                <h3>Average Performance Metrics</h3>
+                <img src="data:image/png;base64,{}" alt="Average Performance Metrics">
+            </div>
+            <div class="chart-container">
+                <h3>FPS Distribution</h3>
+                <img src="data:image/png;base64,{}" alt="FPS Distribution">
+            </div>
+            <div class="chart-container">
+                <h3>Bandwidth Distribution</h3>
+                <img src="data:image/png;base64,{}" alt="Bandwidth Distribution">
+            </div>
+            <div class="chart-container">
+                <h3>RTT Distribution</h3>
+                <img src="data:image/png;base64,{}" alt="RTT Distribution">
+            </div>
+            <div class="chart-container">
+                <h3>Correlation Heatmap</h3>
+                <img src="data:image/png;base64,{}" alt="Correlation Heatmap">
+            </div>
+            """.format(
+                plots_base64.get("averages", ""),
+                plots_base64.get("fps_values", ""),
+                plots_base64.get("bandwidth_values", ""),
+                plots_base64.get("rtt_values", ""),
+                plots_base64.get("correlation", ""),
+            )
+
         report_content += "## Summary by Folder\n\n"
         report_content += "Note: Averages are calculated after excluding the highest and lowest values.\n\n"
 
@@ -756,7 +955,7 @@ def generate_folder_report(folder_data):
 
             # Convert to HTML and save
             html_content = markdown.markdown(report_content, extensions=["tables"])
-            html_full_content = f"<!DOCTYPE html><html><head>{html_style}</head><body>{html_content}</body></html>"
+            html_full_content = f"<!DOCTYPE html><html><head>{html_style}</head><body>{html_content}{html_charts}</body></html>"
 
             with open(fixed_html_filename, "w", encoding="utf-8") as f:
                 f.write(html_full_content)
@@ -1069,39 +1268,197 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         return None, None
 
 
-def main():
-    """Main function to process PDF files and generate folder-based report."""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="PDF Metrics Analyzer")
-    parser.add_argument("--excel", action="store_true", help="Generate Excel reports")
-    args = parser.parse_args()
-
-    print("Starting PDF report processing...")
-
+def generate_performance_plots(folder_data, timestamp):
+    """Generate performance visualization plots."""
     try:
-        # 스크립트 실행 위치 확인
+        # Create plots directory if it doesn't exist
+        plots_dir = os.path.join("reports", "plots")
+        os.makedirs(plots_dir, exist_ok=True)
+
+        # Prepare data for plotting
+        plot_data = []
+        for folder, files in folder_data.items():
+            fps_values = []
+            bandwidth_values = []
+            rtt_values = []
+
+            for file_data in files:
+                if isinstance(file_data, dict):  # Ensure file_data is a dictionary
+                    if (
+                        "fps" in file_data
+                        and isinstance(file_data["fps"], (int, float))
+                        and file_data["fps"] > -1
+                    ):
+                        fps_values.append(file_data["fps"])
+                    if (
+                        "bandwidth" in file_data
+                        and isinstance(file_data["bandwidth"], (int, float))
+                        and file_data["bandwidth"] > -1
+                    ):
+                        bandwidth_values.append(file_data["bandwidth"])
+                    if (
+                        "rtt" in file_data
+                        and isinstance(file_data["rtt"], (int, float))
+                        and file_data["rtt"] > -1
+                    ):
+                        rtt_values.append(file_data["rtt"])
+
+            if fps_values or bandwidth_values or rtt_values:
+                plot_data.append(
+                    {
+                        "folder": folder,  # Use full folder path instead of basename
+                        "avg_fps": float(np.mean(fps_values)) if fps_values else 0.0,
+                        "avg_bandwidth": (
+                            float(np.mean(bandwidth_values))
+                            if bandwidth_values
+                            else 0.0
+                        ),
+                        "avg_rtt": float(np.mean(rtt_values)) if rtt_values else 0.0,
+                        "fps_values": fps_values,
+                        "bandwidth_values": bandwidth_values,
+                        "rtt_values": rtt_values,
+                    }
+                )
+
+        if not plot_data:
+            print("\nNo data available for plotting.")
+            return
+
+        # Convert to DataFrame for plotting
+        df = pd.DataFrame(plot_data)
+        print("\nPrepared data for plotting:")
+        print(df[["folder", "avg_fps", "avg_bandwidth", "avg_rtt"]])
+
+        # Set figure size and font size for better readability
+        plt.rcParams.update({"font.size": 8})
+
+        # 1. Bar plot for averages
+        plt.figure(figsize=(20, 10))  # Increased figure size for better readability
+        x = np.arange(len(df))
+        width = 0.25
+
+        plt.bar(x - width, df["avg_fps"], width, label="FPS", color="skyblue")
+        plt.bar(
+            x, df["avg_bandwidth"], width, label="Bandwidth (Mbps)", color="lightgreen"
+        )
+        plt.bar(x + width, df["avg_rtt"], width, label="RTT (ms)", color="salmon")
+
+        plt.title("Average Performance Metrics by Folder")
+        plt.xlabel("Folder")
+        plt.ylabel("Value")
+        plt.xticks(x, df["folder"], rotation=45, ha="right")
+        plt.legend()
+        plt.grid(True, linestyle="--", alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(plots_dir, f"averages_bar_plot_{timestamp}.png"), dpi=300
+        )
+        plt.close()
+
+        # 2. Box plots for distributions
+        metrics = ["fps_values", "bandwidth_values", "rtt_values"]
+        titles = [
+            "FPS Distribution",
+            "Bandwidth Distribution (Mbps)",
+            "RTT Distribution (ms)",
+        ]
+        colors = ["skyblue", "lightgreen", "salmon"]
+
+        for metric, title, color in zip(metrics, titles, colors):
+            plt.figure(figsize=(20, 10))  # Increased figure size for better readability
+            data_to_plot = [d[metric] for d in plot_data if d[metric]]
+            if data_to_plot:
+                bp = plt.boxplot(data_to_plot, patch_artist=True)
+
+                # Set colors
+                for element in [
+                    "boxes",
+                    "whiskers",
+                    "fliers",
+                    "means",
+                    "medians",
+                    "caps",
+                ]:
+                    plt.setp(bp[element], color="black")
+                plt.setp(bp["boxes"], facecolor=color)
+
+                plt.title(title)
+                plt.xticks(
+                    range(1, len(data_to_plot) + 1),
+                    [
+                        d["folder"] for d in plot_data if d[metric]
+                    ],  # Use full folder path
+                    rotation=45,
+                    ha="right",
+                )
+                plt.grid(True, linestyle="--", alpha=0.3)
+                plt.tight_layout()
+                metric_name = metric.split("_")[0]
+                plt.savefig(
+                    os.path.join(plots_dir, f"{metric_name}_boxplot_{timestamp}.png"),
+                    dpi=300,
+                )
+            plt.close()
+
+        # 3. Correlation heatmap
+        plt.figure(figsize=(10, 8))
+        correlation_data = {
+            "FPS": df["avg_fps"].values,
+            "Bandwidth": df["avg_bandwidth"].values,
+            "RTT": df["avg_rtt"].values,
+        }
+        correlation_df = pd.DataFrame(correlation_data)
+        correlation_matrix = correlation_df.corr()
+
+        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+        sns.heatmap(
+            correlation_matrix,
+            mask=mask,
+            annot=True,
+            cmap="coolwarm",
+            vmin=-1,
+            vmax=1,
+            square=True,
+            fmt=".2f",
+        )
+        plt.title("Correlation between Performance Metrics")
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(plots_dir, f"correlation_heatmap_{timestamp}.png"), dpi=300
+        )
+        plt.close()
+
+        print(f"\nGenerated performance plots in {plots_dir}/")
+
+    except Exception as e:
+        print(f"\nError generating plots: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        print("\nFailed to generate performance plots.")
+
+
+def process_pdf_files():
+    """Process all PDF files in the current directory and subdirectories."""
+    try:
+        print("Starting PDF report processing...")
+
+        # Get script directory
         if hasattr(sys, "_MEIPASS"):  # PyInstaller로 실행된 경우
             script_dir = sys._MEIPASS
         else:
             script_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # 현재 작업 디렉토리 출력
+        # Print current working directory
         current_dir = os.getcwd()
         print(f"Current working directory: {current_dir}")
         print(f"Script directory: {script_dir}")
 
-        # PDF 파일 검색
+        # Find PDF files
         pdf_files = find_pdf_files(".")
         if not pdf_files:
             print("No PDF files found.")
-            print("\n프로그램이 완료되었습니다. 아무 키나 누르면 종료됩니다...")
-            try:
-                import msvcrt
-
-                msvcrt.getch()
-            except ImportError:
-                input("아무 키나 누르세요...")
-            return
+            return None
 
         print(f"\nFound {len(pdf_files)} PDF files to process:")
         for pdf_file in pdf_files:
@@ -1134,9 +1491,41 @@ def main():
 
             except Exception as e:
                 print(f"Error processing {pdf_path}: {e}")
+                continue
+
+        return folder_data
+
+    except Exception as e:
+        print(f"Error in process_pdf_files: {e}")
+        return None
+
+
+def main():
+    """Main function to process PDF files and generate folder-based report."""
+    parser = argparse.ArgumentParser(
+        description="Process PDF files and generate reports"
+    )
+    parser.add_argument("--excel", action="store_true", help="Generate Excel reports")
+    parser.add_argument(
+        "--plots", action="store_true", help="Generate performance plots"
+    )
+    args = parser.parse_args()
+
+    try:
+        # Create reports and plots directories
+        reports_dir = "reports"
+        plots_dir = os.path.join(reports_dir, "plots")
+        os.makedirs(reports_dir, exist_ok=True)
+        os.makedirs(plots_dir, exist_ok=True)
+        print(f"Created directories:\n- {reports_dir}\n- {plots_dir}")
+
+        # Process PDF files
+        folder_data = process_pdf_files()
 
         # Generate reports
         if folder_data:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
             # Generate markdown and HTML reports
             fixed_md, timestamped_md, fixed_html, timestamped_html = (
                 generate_folder_report(folder_data)
@@ -1144,9 +1533,8 @@ def main():
 
             # Generate Excel reports if requested
             if args.excel:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 details_excel, averages_excel = export_to_excel(
-                    folder_data, "reports", timestamp
+                    folder_data, reports_dir, timestamp
                 )
                 if details_excel and averages_excel:
                     print(f"\nExcel reports generated:")
@@ -1154,6 +1542,10 @@ def main():
                     print(f"2. Averages report: {averages_excel}")
                 else:
                     print("\nFailed to generate Excel reports.")
+
+            # Generate plots if requested
+            if args.plots:
+                generate_performance_plots(folder_data, timestamp)
 
             if fixed_md and timestamped_md and fixed_html and timestamped_html:
                 print(f"\nGenerated reports:")
@@ -1171,15 +1563,8 @@ def main():
             print("\nNo data was processed successfully. Reports not generated.")
 
     except Exception as e:
-        print(f"\nError in main process: {e}")
-
-    print("\n프로그램이 완료되었습니다. 아무 키나 누르면 종료됩니다...")
-    try:
-        import msvcrt
-
-        msvcrt.getch()
-    except ImportError:
-        input("아무 키나 누르세요...")
+        print(f"Error in main function: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
