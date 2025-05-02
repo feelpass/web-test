@@ -1196,7 +1196,7 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         color1 = "FFFFFF"  # White
         color2 = "F5F5F5"  # Very light gray
 
-        # Set up headers for details
+        # Set up headers for details and averages
         headers = [
             "Folder",
             "Filename",
@@ -1216,6 +1216,23 @@ def export_to_excel(folder_data, reports_dir, timestamp):
             "Data Usage",
         ]
 
+        # Set up headers for averages
+        avg_headers = [
+            "Folder",
+            "Date",
+            "City",
+            "Area",
+            "Region",
+            "Carrier",
+            "Network Type",
+            "Game",
+            "Device",
+            "Average FPS",
+            "Average Bandwidth (Mbps)",
+            "Average RTT (ms)",
+        ]
+
+        # Set up headers for details worksheet
         for col, header in enumerate(headers, 1):
             cell = ws_details.cell(row=1, column=col)
             cell.value = header
@@ -1302,13 +1319,7 @@ def export_to_excel(folder_data, reports_dir, timestamp):
         ws_averages = wb_averages.active
         ws_averages.title = "Folder Averages"
 
-        # Set up headers for averages
-        avg_headers = [
-            "Folder",
-            "Average FPS",
-            "Average Bandwidth (Mbps)",
-            "Average RTT (ms)",
-        ]
+        # Set up headers for averages worksheet
         for col, header in enumerate(avg_headers, 1):
             cell = ws_averages.cell(row=1, column=col)
             cell.value = header
@@ -1352,15 +1363,27 @@ def export_to_excel(folder_data, reports_dir, timestamp):
             avg_bw = sum(bw_values) / len(bw_values) if bw_values else -1
             avg_rtt = sum(rtt_values) / len(rtt_values) if rtt_values else -1
 
+            # Parse folder path for additional columns
+            path_components = parse_folder_path(folder)
+
+            # Fill data for averages
             ws_averages.cell(row=row, column=1, value=folder)
+            ws_averages.cell(row=row, column=2, value=path_components["date"])
+            ws_averages.cell(row=row, column=3, value=path_components["city"])
+            ws_averages.cell(row=row, column=4, value=path_components["area"])
+            ws_averages.cell(row=row, column=5, value=path_components["region"])
+            ws_averages.cell(row=row, column=6, value=path_components["carrier"])
+            ws_averages.cell(row=row, column=7, value=path_components["network"])
+            ws_averages.cell(row=row, column=8, value=path_components["game"])
+            ws_averages.cell(row=row, column=9, value=path_components["device"])
             ws_averages.cell(
-                row=row, column=2, value=round(avg_fps, 2) if avg_fps > 0 else "N/A"
+                row=row, column=10, value=round(avg_fps, 2) if avg_fps > 0 else "N/A"
             )
             ws_averages.cell(
-                row=row, column=3, value=round(avg_bw, 2) if avg_bw > 0 else "N/A"
+                row=row, column=11, value=round(avg_bw, 2) if avg_bw > 0 else "N/A"
             )
             ws_averages.cell(
-                row=row, column=4, value=round(avg_rtt, 2) if avg_rtt > 0 else "N/A"
+                row=row, column=12, value=round(avg_rtt, 2) if avg_rtt > 0 else "N/A"
             )
 
             row += 1
