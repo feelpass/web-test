@@ -16,6 +16,17 @@ import markdown
 import numpy as np
 import base64
 import io
+import platform
+
+# Set up Korean font for matplotlib
+if platform.system() == "Darwin":  # macOS
+    plt.rcParams["font.family"] = "AppleGothic"
+elif platform.system() == "Windows":
+    plt.rcParams["font.family"] = "Malgun Gothic"
+else:  # Linux
+    plt.rcParams["font.family"] = "NanumGothic"
+
+plt.rcParams["axes.unicode_minus"] = False  # 마이너스 기호 깨짐 방지
 
 
 def find_pdf_files(root_dir="."):
@@ -362,6 +373,11 @@ def generate_folder_report(folder_data):
                 bandwidth_values = []
                 rtt_values = []
 
+                # Parse folder path to get region and carrier
+                path_components = parse_folder_path(folder)
+                region = path_components["region"]
+                carrier = path_components["carrier"]
+
                 for file_data in files:
                     if isinstance(file_data, dict):
                         if (
@@ -387,6 +403,8 @@ def generate_folder_report(folder_data):
                     plot_data.append(
                         {
                             "folder": folder,
+                            "region": region,
+                            "carrier": carrier,
                             "avg_fps": (
                                 float(np.mean(fps_values)) if fps_values else 0.0
                             ),
@@ -414,69 +432,179 @@ def generate_folder_report(folder_data):
                     buf.seek(0)
                     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-                # 1. Bar plot for averages
-                plt.figure(figsize=(20, 10))
-                x = np.arange(len(df))
-                width = 0.25
+                # Group data by region and carrier
+                regions = sorted(df["region"].unique())
+                carriers = sorted(df["carrier"].unique())
 
-                plt.bar(x - width, df["avg_fps"], width, label="FPS", color="skyblue")
-                plt.bar(
-                    x,
-                    df["avg_bandwidth"],
-                    width,
-                    label="Bandwidth (Mbps)",
-                    color="lightgreen",
-                )
-                plt.bar(
-                    x + width, df["avg_rtt"], width, label="RTT (ms)", color="salmon"
-                )
+                # 1. Bar plots for averages by region
+                for region in regions:
+                    region_data = df[df["region"] == region]
+                    if not region_data.empty:
+                        plt.figure(figsize=(20, 10))
+                        x = np.arange(len(region_data))
+                        width = 0.25
 
-                plt.title("Average Performance Metrics by Folder")
-                plt.xlabel("Folder")
-                plt.ylabel("Value")
-                plt.xticks(x, df["folder"], rotation=45, ha="right")
-                plt.legend()
-                plt.grid(True, linestyle="--", alpha=0.3)
-                plt.tight_layout()
-                plots_base64["averages"] = get_plot_base64(plt.gcf())
-                plt.close()
-
-                # 2. Box plots
-                metrics = ["fps_values", "bandwidth_values", "rtt_values"]
-                titles = [
-                    "FPS Distribution",
-                    "Bandwidth Distribution (Mbps)",
-                    "RTT Distribution (ms)",
-                ]
-                colors = ["skyblue", "lightgreen", "salmon"]
-
-                for metric, title, color in zip(metrics, titles, colors):
-                    plt.figure(figsize=(20, 10))
-                    data_to_plot = [d[metric] for d in plot_data if d[metric]]
-                    if data_to_plot:
-                        bp = plt.boxplot(data_to_plot, patch_artist=True)
-                        for element in [
-                            "boxes",
-                            "whiskers",
-                            "fliers",
-                            "means",
-                            "medians",
-                            "caps",
-                        ]:
-                            plt.setp(bp[element], color="black")
-                        plt.setp(bp["boxes"], facecolor=color)
-
-                        plt.title(title)
-                        plt.xticks(
-                            range(1, len(data_to_plot) + 1),
-                            [d["folder"] for d in plot_data if d[metric]],
-                            rotation=45,
-                            ha="right",
+                        plt.bar(
+                            x - width,
+                            region_data["avg_fps"],
+                            width,
+                            label="FPS",
+                            color="skyblue",
                         )
+                        plt.bar(
+                            x,
+                            region_data["avg_bandwidth"],
+                            width,
+                            label="Bandwidth (Mbps)",
+                            color="lightgreen",
+                        )
+                        plt.bar(
+                            x + width,
+                            region_data["avg_rtt"],
+                            width,
+                            label="RTT (ms)",
+                            color="salmon",
+                        )
+
+                        plt.title(f"Average Performance Metrics - Region: {region}")
+                        plt.xlabel("Folder")
+                        plt.ylabel("Value")
+                        plt.xticks(x, region_data["folder"], rotation=45, ha="right")
+                        plt.legend()
                         plt.grid(True, linestyle="--", alpha=0.3)
                         plt.tight_layout()
-                        plots_base64[metric] = get_plot_base64(plt.gcf())
-                    plt.close()
+                        plots_base64[f"averages_region_{region}"] = get_plot_base64(
+                            plt.gcf()
+                        )
+                        plt.close()
+
+                        # Box plots for region
+                        metrics = ["fps_values", "bandwidth_values", "rtt_values"]
+                        titles = [
+                            "FPS Distribution",
+                            "Bandwidth Distribution (Mbps)",
+                            "RTT Distribution (ms)",
+                        ]
+                        colors = ["skyblue", "lightgreen", "salmon"]
+
+                        for metric, title, color in zip(metrics, titles, colors):
+                            plt.figure(figsize=(20, 10))
+                            data_to_plot = [
+                                d[metric]
+                                for _, d in region_data.iterrows()
+                                if d[metric]
+                            ]
+                            if data_to_plot:
+                                bp = plt.boxplot(data_to_plot, patch_artist=True)
+                                for element in [
+                                    "boxes",
+                                    "whiskers",
+                                    "fliers",
+                                    "means",
+                                    "medians",
+                                    "caps",
+                                ]:
+                                    plt.setp(bp[element], color="black")
+                                plt.setp(bp["boxes"], facecolor=color)
+
+                                plt.title(f"{title} - Region: {region}")
+                                plt.xticks(
+                                    range(1, len(data_to_plot) + 1),
+                                    [
+                                        d["folder"]
+                                        for _, d in region_data.iterrows()
+                                        if d[metric]
+                                    ],
+                                    rotation=45,
+                                    ha="right",
+                                )
+                                plt.grid(True, linestyle="--", alpha=0.3)
+                                plt.tight_layout()
+                                plots_base64[f"{metric}_region_{region}"] = (
+                                    get_plot_base64(plt.gcf())
+                                )
+                                plt.close()
+
+                # 2. Bar plots for averages by carrier
+                for carrier in carriers:
+                    carrier_data = df[df["carrier"] == carrier]
+                    if not carrier_data.empty:
+                        plt.figure(figsize=(20, 10))
+                        x = np.arange(len(carrier_data))
+                        width = 0.25
+
+                        plt.bar(
+                            x - width,
+                            carrier_data["avg_fps"],
+                            width,
+                            label="FPS",
+                            color="skyblue",
+                        )
+                        plt.bar(
+                            x,
+                            carrier_data["avg_bandwidth"],
+                            width,
+                            label="Bandwidth (Mbps)",
+                            color="lightgreen",
+                        )
+                        plt.bar(
+                            x + width,
+                            carrier_data["avg_rtt"],
+                            width,
+                            label="RTT (ms)",
+                            color="salmon",
+                        )
+
+                        plt.title(f"Average Performance Metrics - Carrier: {carrier}")
+                        plt.xlabel("Folder")
+                        plt.ylabel("Value")
+                        plt.xticks(x, carrier_data["folder"], rotation=45, ha="right")
+                        plt.legend()
+                        plt.grid(True, linestyle="--", alpha=0.3)
+                        plt.tight_layout()
+                        plots_base64[f"averages_carrier_{carrier}"] = get_plot_base64(
+                            plt.gcf()
+                        )
+                        plt.close()
+
+                        # Box plots for carrier
+                        for metric, title, color in zip(metrics, titles, colors):
+                            plt.figure(figsize=(20, 10))
+                            data_to_plot = [
+                                d[metric]
+                                for _, d in carrier_data.iterrows()
+                                if d[metric]
+                            ]
+                            if data_to_plot:
+                                bp = plt.boxplot(data_to_plot, patch_artist=True)
+                                for element in [
+                                    "boxes",
+                                    "whiskers",
+                                    "fliers",
+                                    "means",
+                                    "medians",
+                                    "caps",
+                                ]:
+                                    plt.setp(bp[element], color="black")
+                                plt.setp(bp["boxes"], facecolor=color)
+
+                                plt.title(f"{title} - Carrier: {carrier}")
+                                plt.xticks(
+                                    range(1, len(data_to_plot) + 1),
+                                    [
+                                        d["folder"]
+                                        for _, d in carrier_data.iterrows()
+                                        if d[metric]
+                                    ],
+                                    rotation=45,
+                                    ha="right",
+                                )
+                                plt.grid(True, linestyle="--", alpha=0.3)
+                                plt.tight_layout()
+                                plots_base64[f"{metric}_carrier_{carrier}"] = (
+                                    get_plot_base64(plt.gcf())
+                                )
+                                plt.close()
 
         except Exception as e:
             print(f"Error generating plots: {e}")
@@ -484,30 +612,49 @@ def generate_folder_report(folder_data):
         # Add performance charts section to HTML
         html_charts = ""
         if plots_base64:
-            html_charts = """
-            <h2>Performance Charts</h2>
-            <div class="chart-container">
-                <h3>Average Performance Metrics</h3>
-                <img src="data:image/png;base64,{}" alt="Average Performance Metrics">
-            </div>
-            <div class="chart-container">
-                <h3>FPS Distribution</h3>
-                <img src="data:image/png;base64,{}" alt="FPS Distribution">
-            </div>
-            <div class="chart-container">
-                <h3>Bandwidth Distribution</h3>
-                <img src="data:image/png;base64,{}" alt="Bandwidth Distribution">
-            </div>
-            <div class="chart-container">
-                <h3>RTT Distribution</h3>
-                <img src="data:image/png;base64,{}" alt="RTT Distribution">
-            </div>
-            """.format(
-                plots_base64.get("averages", ""),
-                plots_base64.get("fps_values", ""),
-                plots_base64.get("bandwidth_values", ""),
-                plots_base64.get("rtt_values", ""),
-            )
+            # Add Region-specific charts
+            for region in sorted(df["region"].unique()):
+                html_charts += f"""
+                <h2>Performance Charts - Region: {region}</h2>
+                <div class="chart-container">
+                    <h3>Average Performance Metrics</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'averages_region_{region}', '')}" alt="Average Performance Metrics - Region: {region}">
+                </div>
+                <div class="chart-container">
+                    <h3>FPS Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'fps_values_region_{region}', '')}" alt="FPS Distribution - Region: {region}">
+                </div>
+                <div class="chart-container">
+                    <h3>Bandwidth Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'bandwidth_values_region_{region}', '')}" alt="Bandwidth Distribution - Region: {region}">
+                </div>
+                <div class="chart-container">
+                    <h3>RTT Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'rtt_values_region_{region}', '')}" alt="RTT Distribution - Region: {region}">
+                </div>
+                """
+
+            # Add Carrier-specific charts
+            for carrier in sorted(df["carrier"].unique()):
+                html_charts += f"""
+                <h2>Performance Charts - Carrier: {carrier}</h2>
+                <div class="chart-container">
+                    <h3>Average Performance Metrics</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'averages_carrier_{carrier}', '')}" alt="Average Performance Metrics - Carrier: {carrier}">
+                </div>
+                <div class="chart-container">
+                    <h3>FPS Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'fps_values_carrier_{carrier}', '')}" alt="FPS Distribution - Carrier: {carrier}">
+                </div>
+                <div class="chart-container">
+                    <h3>Bandwidth Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'bandwidth_values_carrier_{carrier}', '')}" alt="Bandwidth Distribution - Carrier: {carrier}">
+                </div>
+                <div class="chart-container">
+                    <h3>RTT Distribution</h3>
+                    <img src="data:image/png;base64,{plots_base64.get(f'rtt_values_carrier_{carrier}', '')}" alt="RTT Distribution - Carrier: {carrier}">
+                </div>
+                """
 
         report_content += "## Summary by Folder\n\n"
         report_content += "Note: Averages are calculated after excluding the highest and lowest values.\n\n"
@@ -1238,21 +1385,26 @@ def export_to_excel(folder_data, reports_dir, timestamp):
 
 
 def generate_performance_plots(folder_data, timestamp):
-    """Generate performance visualization plots."""
+    """Generate performance visualization plots grouped by Region and Carrier."""
     try:
         # Create plots directory if it doesn't exist
         plots_dir = os.path.join("reports", "plots")
         os.makedirs(plots_dir, exist_ok=True)
 
-        # Prepare data for plotting
+        # Prepare data for plotting with region and carrier information
         plot_data = []
         for folder, files in folder_data.items():
             fps_values = []
             bandwidth_values = []
             rtt_values = []
 
+            # Parse folder path to get region and carrier
+            path_components = parse_folder_path(folder)
+            region = path_components["region"]
+            carrier = path_components["carrier"]
+
             for file_data in files:
-                if isinstance(file_data, dict):  # Ensure file_data is a dictionary
+                if isinstance(file_data, dict):
                     if (
                         "fps" in file_data
                         and isinstance(file_data["fps"], (int, float))
@@ -1275,7 +1427,9 @@ def generate_performance_plots(folder_data, timestamp):
             if fps_values or bandwidth_values or rtt_values:
                 plot_data.append(
                     {
-                        "folder": folder,  # Use full folder path instead of basename
+                        "folder": folder,
+                        "region": region,
+                        "carrier": carrier,
                         "avg_fps": float(np.mean(fps_values)) if fps_values else 0.0,
                         "avg_bandwidth": (
                             float(np.mean(bandwidth_values))
@@ -1296,35 +1450,117 @@ def generate_performance_plots(folder_data, timestamp):
         # Convert to DataFrame for plotting
         df = pd.DataFrame(plot_data)
         print("\nPrepared data for plotting:")
-        print(df[["folder", "avg_fps", "avg_bandwidth", "avg_rtt"]])
+        print(
+            df[["folder", "region", "carrier", "avg_fps", "avg_bandwidth", "avg_rtt"]]
+        )
 
         # Set figure size and font size for better readability
-        plt.rcParams.update({"font.size": 8})
-
-        # 1. Bar plot for averages
-        plt.figure(figsize=(20, 10))  # Increased figure size for better readability
-        x = np.arange(len(df))
-        width = 0.25
-
-        plt.bar(x - width, df["avg_fps"], width, label="FPS", color="skyblue")
-        plt.bar(
-            x, df["avg_bandwidth"], width, label="Bandwidth (Mbps)", color="lightgreen"
+        plt.rcParams.update(
+            {"font.size": 10, "figure.autolayout": True, "figure.figsize": (20, 10)}
         )
-        plt.bar(x + width, df["avg_rtt"], width, label="RTT (ms)", color="salmon")
 
-        plt.title("Average Performance Metrics by Folder")
-        plt.xlabel("Folder")
-        plt.ylabel("Value")
-        plt.xticks(x, df["folder"], rotation=45, ha="right")
-        plt.legend()
-        plt.grid(True, linestyle="--", alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(
-            os.path.join(plots_dir, f"averages_bar_plot_{timestamp}.png"), dpi=300
-        )
-        plt.close()
+        # Group data by region and carrier
+        regions = sorted(df["region"].unique())
+        carriers = sorted(df["carrier"].unique())
 
-        # 2. Box plots for distributions
+        # 1. Bar plots for averages by region
+        for region in regions:
+            region_data = df[df["region"] == region]
+            if not region_data.empty:
+                fig, ax = plt.subplots()
+                x = np.arange(len(region_data))
+                width = 0.25
+
+                ax.bar(
+                    x - width,
+                    region_data["avg_fps"],
+                    width,
+                    label="FPS",
+                    color="skyblue",
+                )
+                ax.bar(
+                    x,
+                    region_data["avg_bandwidth"],
+                    width,
+                    label="Bandwidth (Mbps)",
+                    color="lightgreen",
+                )
+                ax.bar(
+                    x + width,
+                    region_data["avg_rtt"],
+                    width,
+                    label="RTT (ms)",
+                    color="salmon",
+                )
+
+                ax.set_title(f"Average Performance Metrics - Region: {region}")
+                ax.set_xlabel("Folder")
+                ax.set_ylabel("Value")
+                ax.set_xticks(x)
+                ax.set_xticklabels(region_data["folder"], rotation=45, ha="right")
+                ax.legend()
+                ax.grid(True, linestyle="--", alpha=0.3)
+
+                plt.tight_layout()
+                plt.savefig(
+                    os.path.join(
+                        plots_dir, f"averages_bar_plot_region_{region}_{timestamp}.png"
+                    ),
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+                plt.close()
+
+        # 2. Bar plots for averages by carrier
+        for carrier in carriers:
+            carrier_data = df[df["carrier"] == carrier]
+            if not carrier_data.empty:
+                fig, ax = plt.subplots()
+                x = np.arange(len(carrier_data))
+                width = 0.25
+
+                ax.bar(
+                    x - width,
+                    carrier_data["avg_fps"],
+                    width,
+                    label="FPS",
+                    color="skyblue",
+                )
+                ax.bar(
+                    x,
+                    carrier_data["avg_bandwidth"],
+                    width,
+                    label="Bandwidth (Mbps)",
+                    color="lightgreen",
+                )
+                ax.bar(
+                    x + width,
+                    carrier_data["avg_rtt"],
+                    width,
+                    label="RTT (ms)",
+                    color="salmon",
+                )
+
+                ax.set_title(f"Average Performance Metrics - Carrier: {carrier}")
+                ax.set_xlabel("Folder")
+                ax.set_ylabel("Value")
+                ax.set_xticks(x)
+                ax.set_xticklabels(carrier_data["folder"], rotation=45, ha="right")
+                ax.legend()
+                ax.grid(True, linestyle="--", alpha=0.3)
+
+                plt.tight_layout()
+                plt.savefig(
+                    os.path.join(
+                        plots_dir,
+                        f"averages_bar_plot_carrier_{carrier}_{timestamp}.png",
+                    ),
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+                plt.close()
+
+        # 3. Box plots for distributions
         metrics = ["fps_values", "bandwidth_values", "rtt_values"]
         titles = [
             "FPS Distribution",
@@ -1333,41 +1569,99 @@ def generate_performance_plots(folder_data, timestamp):
         ]
         colors = ["skyblue", "lightgreen", "salmon"]
 
-        for metric, title, color in zip(metrics, titles, colors):
-            plt.figure(figsize=(20, 10))  # Increased figure size for better readability
-            data_to_plot = [d[metric] for d in plot_data if d[metric]]
-            if data_to_plot:
-                bp = plt.boxplot(data_to_plot, patch_artist=True)
+        # Box plots by region
+        for region in regions:
+            region_data = df[df["region"] == region]
+            if not region_data.empty:
+                for metric, title, color in zip(metrics, titles, colors):
+                    fig, ax = plt.subplots()
+                    data_to_plot = [
+                        d[metric] for _, d in region_data.iterrows() if d[metric]
+                    ]
+                    if data_to_plot:
+                        bp = ax.boxplot(data_to_plot, patch_artist=True)
+                        for element in [
+                            "boxes",
+                            "whiskers",
+                            "fliers",
+                            "means",
+                            "medians",
+                            "caps",
+                        ]:
+                            plt.setp(bp[element], color="black")
+                        plt.setp(bp["boxes"], facecolor=color)
 
-                # Set colors
-                for element in [
-                    "boxes",
-                    "whiskers",
-                    "fliers",
-                    "means",
-                    "medians",
-                    "caps",
-                ]:
-                    plt.setp(bp[element], color="black")
-                plt.setp(bp["boxes"], facecolor=color)
+                        ax.set_title(f"{title} - Region: {region}")
+                        ax.set_xticks(range(1, len(data_to_plot) + 1))
+                        ax.set_xticklabels(
+                            [
+                                d["folder"]
+                                for _, d in region_data.iterrows()
+                                if d[metric]
+                            ],
+                            rotation=45,
+                            ha="right",
+                        )
+                        ax.grid(True, linestyle="--", alpha=0.3)
 
-                plt.title(title)
-                plt.xticks(
-                    range(1, len(data_to_plot) + 1),
-                    [
-                        d["folder"] for d in plot_data if d[metric]
-                    ],  # Use full folder path
-                    rotation=45,
-                    ha="right",
-                )
-                plt.grid(True, linestyle="--", alpha=0.3)
-                plt.tight_layout()
-                metric_name = metric.split("_")[0]
-                plt.savefig(
-                    os.path.join(plots_dir, f"{metric_name}_boxplot_{timestamp}.png"),
-                    dpi=300,
-                )
-            plt.close()
+                        plt.tight_layout()
+                        metric_name = metric.split("_")[0]
+                        plt.savefig(
+                            os.path.join(
+                                plots_dir,
+                                f"{metric_name}_boxplot_region_{region}_{timestamp}.png",
+                            ),
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
+
+        # Box plots by carrier
+        for carrier in carriers:
+            carrier_data = df[df["carrier"] == carrier]
+            if not carrier_data.empty:
+                for metric, title, color in zip(metrics, titles, colors):
+                    fig, ax = plt.subplots()
+                    data_to_plot = [
+                        d[metric] for _, d in carrier_data.iterrows() if d[metric]
+                    ]
+                    if data_to_plot:
+                        bp = ax.boxplot(data_to_plot, patch_artist=True)
+                        for element in [
+                            "boxes",
+                            "whiskers",
+                            "fliers",
+                            "means",
+                            "medians",
+                            "caps",
+                        ]:
+                            plt.setp(bp[element], color="black")
+                        plt.setp(bp["boxes"], facecolor=color)
+
+                        ax.set_title(f"{title} - Carrier: {carrier}")
+                        ax.set_xticks(range(1, len(data_to_plot) + 1))
+                        ax.set_xticklabels(
+                            [
+                                d["folder"]
+                                for _, d in carrier_data.iterrows()
+                                if d[metric]
+                            ],
+                            rotation=45,
+                            ha="right",
+                        )
+                        ax.grid(True, linestyle="--", alpha=0.3)
+
+                        plt.tight_layout()
+                        metric_name = metric.split("_")[0]
+                        plt.savefig(
+                            os.path.join(
+                                plots_dir,
+                                f"{metric_name}_boxplot_carrier_{carrier}_{timestamp}.png",
+                            ),
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
 
         print(f"\nGenerated performance plots in {plots_dir}/")
 
