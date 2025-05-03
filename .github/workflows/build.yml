@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build Desktop Applications
 
 on:
   push:
@@ -15,7 +15,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            output_name: PDF리포트생성기.exe
+            pyinstaller_args: --windowed --onefile --name "PDF리포트생성기" --add-data "main.py;." main_gui.py
+          - os: macos-latest
+            output_name: PDF리포트생성기.app
+            pyinstaller_args: --windowed --onedir --name "PDF리포트생성기" --add-data "main.py:." --noconfirm main_gui.py
+    
+    runs-on: ${{ matrix.os }}
     
     steps:
     - uses: actions/checkout@v3
@@ -51,33 +62,46 @@ jobs:
       run: echo "VERSION=dev" >> $GITHUB_ENV
         
     - name: Build executable with PyInstaller
-      run: |
-        pyinstaller --onefile --name=PDFMetricsAnalyzer-${{ env.VERSION }} main.py
+      run: pyinstaller ${{ matrix.pyinstaller_args }}
     
-    - name: Display file size
+    - name: Display file size (Windows)
+      if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
-        $filePath = "dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe"
+        $filePath = "dist/${{ matrix.output_name }}"
         $fileInfo = Get-Item $filePath
         $fileSizeMB = "{0:N2}" -f ($fileInfo.Length / 1MB)
         echo "File: $filePath"
         echo "Size: $fileSizeMB MB"
-        
-    - name: Analyze executable size
-      shell: pwsh
+
+    - name: Display file size (macOS)
+      if: matrix.os == 'macos-latest'
+      shell: bash
       run: |
-        echo "Checking PyInstaller options that might reduce the file size:"
-        echo "1. Current build uses --onefile which includes all dependencies"
-        echo "2. Consider using --noupx=False to enable UPX compression"
+        du -sh "dist/${{ matrix.output_name }}"
         
-    - name: Upload executable as artifact
+    - name: Create ZIP archive for macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd dist
+        zip -r "PDF리포트생성기-${{ env.VERSION }}-macOS.zip" "${{ matrix.output_name }}"
+        cd ..
+        
+    - name: Upload artifact (Windows)
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: PDFMetricsAnalyzer-${{ env.VERSION }}
-        path: dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
+        name: PDF리포트생성기-${{ env.VERSION }}-Windows
+        path: dist/${{ matrix.output_name }}
+
+    - name: Upload artifact (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: PDF리포트생성기-${{ env.VERSION }}-macOS
+        path: dist/PDF리포트생성기-${{ env.VERSION }}-macOS.zip
 
     - name: Create Release
-      id: create_release
       if: startsWith(github.ref, 'refs/heads/release/')
       uses: softprops/action-gh-release@v1
       with:
@@ -86,7 +110,7 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          dist/PDFMetricsAnalyzer-${{ env.VERSION }}.exe
+          ${{ matrix.os == 'windows-latest' && format('dist/{0}', matrix.output_name) || format('dist/PDF리포트생성기-{0}-macOS.zip', env.VERSION) }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         

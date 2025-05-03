@@ -1374,63 +1374,85 @@ def main():
     parser.add_argument("--folder", help="Specify folder path directly")
     args = parser.parse_args()
 
+    def console_log(message):
+        """Print log messages to console."""
+        print(message, end="")
+        sys.stdout.flush()
+
     try:
         # 폴더 경로가 지정된 경우에만 처리
         if not args.folder:
-            print("폴더 경로를 지정해주세요.")
+            console_log("폴더 경로를 지정해주세요.\n")
             sys.exit(1)
 
         folder_path = args.folder
+        console_log(f"선택한 폴더: {folder_path}\n")
 
         # Create reports and plots directories
         reports_dir = os.path.join(os.path.dirname(folder_path), "reports")
         plots_dir = os.path.join(reports_dir, "plots")
         os.makedirs(reports_dir, exist_ok=True)
         os.makedirs(plots_dir, exist_ok=True)
-        print(f"생성된 디렉토리:\n- {reports_dir}\n- {plots_dir}")
+        console_log(f"생성된 디렉토리:\n- {reports_dir}\n- {plots_dir}\n")
 
         # Process PDF files
-        folder_data = process_pdf_files(folder_path)
+        console_log("\nPDF 파일 처리 시작...\n")
+        folder_data = process_pdf_files(folder_path, log_callback=console_log)
 
         if folder_data:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             # Generate markdown and HTML reports
+            console_log("\n마크다운 및 HTML 리포트 생성 중...\n")
             fixed_md, timestamped_md, fixed_html, timestamped_html = (
-                generate_folder_report(folder_data)
+                generate_folder_report(folder_data, log_callback=console_log)
             )
 
             # Generate Excel reports if requested
             if args.excel:
+                console_log("\nExcel 리포트 생성 중...\n")
                 details_excel, averages_excel = export_to_excel(
-                    folder_data, reports_dir, timestamp
+                    folder_data, reports_dir, timestamp, log_callback=console_log
                 )
                 if details_excel and averages_excel:
-                    print(f"\nExcel 리포트 생성됨:")
-                    print(f"1. 상세 리포트: {details_excel}")
-                    print(f"2. 평균값 리포트: {averages_excel}")
+                    console_log(f"\nExcel 리포트 생성됨:\n")
+                    console_log(f"1. 상세 리포트: {details_excel}\n")
+                    console_log(f"2. 평균값 리포트: {averages_excel}\n")
                 else:
-                    print("\nExcel 리포트 생성 실패.")
+                    console_log("\nExcel 리포트 생성 실패.\n")
 
             # Generate plots if requested
             if args.plots:
-                generate_performance_plots(folder_data, timestamp)
+                console_log("\n성능 차트 생성 중...\n")
+                plots_success = generate_performance_plots(
+                    folder_data, timestamp, log_callback=console_log
+                )
+                if plots_success:
+                    console_log(f"\n성능 차트가 {plots_dir} 폴더에 저장되었습니다.\n")
+                else:
+                    console_log("\n성능 차트 생성 실패.\n")
 
             if fixed_md and timestamped_md and fixed_html and timestamped_html:
-                print(f"\n생성된 리포트:")
-                print(f"1. 고정 파일명 마크다운 리포트: {os.path.abspath(fixed_md)}")
-                print(
-                    f"2. 타임스탬프 마크다운 리포트: {os.path.abspath(timestamped_md)}"
+                console_log(f"\n생성된 리포트:\n")
+                console_log(
+                    f"1. 고정 파일명 마크다운 리포트: {os.path.abspath(fixed_md)}\n"
                 )
-                print(f"3. 고정 파일명 HTML 리포트: {os.path.abspath(fixed_html)}")
-                print(f"4. 타임스탬프 HTML 리포트: {os.path.abspath(timestamped_html)}")
+                console_log(
+                    f"2. 타임스탬프 마크다운 리포트: {os.path.abspath(timestamped_md)}\n"
+                )
+                console_log(
+                    f"3. 고정 파일명 HTML 리포트: {os.path.abspath(fixed_html)}\n"
+                )
+                console_log(
+                    f"4. 타임스탬프 HTML 리포트: {os.path.abspath(timestamped_html)}\n"
+                )
             else:
-                print("\n리포트 생성 실패.")
+                console_log("\n리포트 생성 실패.\n")
         else:
-            print("\n데이터 처리 실패. 리포트가 생성되지 않았습니다.")
+            console_log("\n데이터 처리 실패. 리포트가 생성되지 않았습니다.\n")
 
     except Exception as e:
-        print(f"메인 함수 실행 중 오류 발생: {e}")
+        console_log(f"메인 함수 실행 중 오류 발생: {e}\n")
         sys.exit(1)
 
 
