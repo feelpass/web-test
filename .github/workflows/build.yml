@@ -17,14 +17,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest]  # macOS 빌드 비활성화
         include:
           - os: windows-latest
             output_name: PDF리포트생성기.exe
             pyinstaller_args: --windowed --onefile --name "PDF리포트생성기" --add-data "main.py;." main_gui.py
-          - os: macos-latest
-            output_name: PDF리포트생성기.app
-            pyinstaller_args: --windowed --onedir --name "PDF리포트생성기" --add-data "main.py:." --noconfirm main_gui.py
     
     runs-on: ${{ matrix.os }}
     
@@ -64,8 +61,7 @@ jobs:
     - name: Build executable with PyInstaller
       run: pyinstaller ${{ matrix.pyinstaller_args }}
     
-    - name: Display file size (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Display file size
       shell: pwsh
       run: |
         $filePath = "dist/${{ matrix.output_name }}"
@@ -73,33 +69,12 @@ jobs:
         $fileSizeMB = "{0:N2}" -f ($fileInfo.Length / 1MB)
         echo "File: $filePath"
         echo "Size: $fileSizeMB MB"
-
-    - name: Display file size (macOS)
-      if: matrix.os == 'macos-latest'
-      shell: bash
-      run: |
-        du -sh "dist/${{ matrix.output_name }}"
         
-    - name: Create ZIP archive for macOS
-      if: matrix.os == 'macos-latest'
-      run: |
-        cd dist
-        zip -r "PDF리포트생성기-${{ env.VERSION }}-macOS.zip" "${{ matrix.output_name }}"
-        cd ..
-        
-    - name: Upload artifact (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: PDF리포트생성기-${{ env.VERSION }}-Windows
         path: dist/${{ matrix.output_name }}
-
-    - name: Upload artifact (macOS)
-      if: matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: PDF리포트생성기-${{ env.VERSION }}-macOS
-        path: dist/PDF리포트생성기-${{ env.VERSION }}-macOS.zip
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/heads/release/')
@@ -109,8 +84,7 @@ jobs:
         tag_name: v${{ steps.extract_version.outputs.version }}
         draft: false
         prerelease: false
-        files: |
-          ${{ matrix.os == 'windows-latest' && format('dist/{0}', matrix.output_name) || format('dist/PDF리포트생성기-{0}-macOS.zip', env.VERSION) }}
+        files: dist/${{ matrix.output_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
