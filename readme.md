@@ -1,63 +1,78 @@
-# PDF Metrics Analyzer
+# PDF 성능 리포트 생성기
 
-PDF 파일에서 성능 메트릭을 추출하고 분석하는 도구입니다.
+PDF 파일에서 성능 데이터를 추출하고 분석하여 리포트를 생성하는 프로그램입니다.
 
-## 주요 기능
+## 기능
 
-- PDF 파일에서 다음 메트릭을 자동으로 추출:
-  - Play Time (재생 시간)
-  - FPS (초당 프레임)
-  - Bandwidth (대역폭)
-  - RTT (Round Trip Time)
-- 폴더별 평균값 계산 및 보고서 생성
-- 최소/최대값 표시 및 이상치 제외 평균 계산
+- PDF 파일에서 성능 데이터 자동 추출
+- 마크다운 및 HTML 형식의 리포트 생성
+- Excel 파일 생성 (상세 데이터 및 평균값)
+- 성능 차트 생성 (지역별, 통신사별)
+- 사용하기 쉬운 그래픽 사용자 인터페이스 (GUI)
 
 ## 설치 방법
 
-1. [Releases](../../releases) 페이지에서 최신 버전을 다운로드하세요
-2. `PDFMetricsAnalyzer.exe` 파일을 원하는 위치에 저장하세요 - 설치 필요 없음
+### 1. 실행 파일 다운로드 (일반 사용자)
+
+1. [Releases](releases) 페이지에서 최신 버전의 실행 파일을 다운로드합니다.
+2. 다운로드한 파일을 원하는 위치에 압축 해제합니다.
+3. `PDF리포트생성기.app` (macOS) 또는 `PDF리포트생성기.exe` (Windows)를 실행합니다.
+
+### 2. 소스코드로 실행 (개발자)
+
+1. 필요한 패키지 설치:
+```bash
+pip install -r requirements.txt
+```
+
+2. GUI 버전 실행:
+```bash
+python main_gui.py
+```
+
+3. 명령줄 버전 실행:
+```bash
+python main.py --plots --excel
+```
+
+## 실행 파일 빌드 방법
+
+### macOS
+```bash
+# GUI 앱 빌드 (앱 번들 생성)
+pyinstaller --windowed --onedir --name "PDF리포트생성기" --add-data "main.py:." --noconfirm main_gui.py
+```
+
+### Windows
+```bash
+# GUI 앱 빌드 (실행 파일 생성)
+pyinstaller --windowed --onefile --name "PDF리포트생성기" --add-data "main.py;." main_gui.py
+```
+
+생성된 실행 파일은 `dist` 폴더에서 찾을 수 있습니다:
+- macOS: `dist/PDF리포트생성기.app`
+- Windows: `dist/PDF리포트생성기.exe`
 
 ## 사용 방법
 
-1. `PDFMetricsAnalyzer.exe`를 더블클릭하여 실행하세요
-2. 프로그램이 자동으로 현재 폴더와 하위 폴더의 모든 PDF 파일을 처리합니다
-   - 언더스코어(_)로 시작하는 폴더는 자동으로 건너뜁니다
-3. 처리가 완료되면 `reports` 폴더에 생성된 보고서를 확인하세요
-   - 보고서는 `folder_metrics_report.md` 파일로 생성됩니다
+1. 프로그램을 실행합니다.
+2. "폴더 선택" 버튼을 클릭하여 PDF 파일이 있는 폴더를 선택합니다.
+3. 원하는 출력 옵션을 선택합니다:
+   - Excel 파일 생성
+   - 성능 차트 생성
+4. "리포트 생성" 버튼을 클릭합니다.
+5. 생성된 파일은 `reports` 폴더에서 확인할 수 있습니다.
 
-## 보고서 내용
+## 생성되는 파일
 
-- 폴더별 요약 정보
-  - 파일 수
-  - 평균 재생 시간
-  - 평균 FPS (최소/최대값 제외)
-  - 평균 대역폭 (최소/최대값 제외)
-  - 평균 RTT (최소/최대값 제외)
-- 폴더별 상세 정보
-  - 개별 파일의 메트릭 값
-  - 최소/최대값 표시
-  - 폴더별 평균값
+- `reports/folder_metrics_report.md`: 마크다운 형식의 리포트
+- `reports/folder_metrics_report.html`: HTML 형식의 리포트
+- `reports/metrics_details_[날짜시간].xlsx`: 상세 데이터 Excel 파일
+- `reports/metrics_averages_[날짜시간].xlsx`: 평균값 데이터 Excel 파일
+- `reports/plots/`: 성능 차트 이미지 파일들
 
 ## 주의사항
 
-- PDF 파일은 지정된 형식의 메트릭 정보를 포함해야 합니다
-- 메트릭 추출에 실패한 경우 보고서에 오류로 표시됩니다
-- 3개 이상의 데이터가 있는 경우 FPS, 대역폭, RTT는 최소/최대값을 제외하고 평균을 계산합니다
-
-## 소스에서 빌드하기
-
-직접 실행 파일을 빌드하려면:
-
-1. PyInstaller 설치:
-   ```
-   pip install pyinstaller
-   ```
-2. 실행 파일 빌드:
-   ```
-   pyinstaller --onefile --name=PDFMetricsAnalyzer main.py
-   ```
-3. 실행 파일은 `dist` 폴더에서 사용 가능합니다
-
-## 라이선스
-
-이 프로젝트는 MIT 라이선스에 따라 사용할 수 있습니다. 자세한 내용은 LICENSE 파일을 참조하세요.
+- 프로그램은 선택한 폴더와 하위 폴더의 모든 PDF 파일을 처리합니다.
+- 언더스코어(_)로 시작하는 폴더는 처리하지 않습니다.
+- 처리 시간은 PDF 파일의 수와 크기에 따라 달라질 수 있습니다.
