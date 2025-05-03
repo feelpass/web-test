@@ -17,6 +17,7 @@ import numpy as np
 import base64
 import io
 import platform
+import json
 
 # Set up Korean font for matplotlib
 if platform.system() == "Darwin":  # macOS
@@ -27,6 +28,32 @@ else:  # Linux
     plt.rcParams["font.family"] = "NanumGothic"
 
 plt.rcParams["axes.unicode_minus"] = False  # 마이너스 기호 깨짐 방지
+
+CONFIG_FILE = "config.json"
+
+
+def get_last_folder():
+    """마지막으로 선택한 폴더 경로를 반환합니다."""
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                last_folder = config.get("last_folder")
+                if last_folder and os.path.exists(last_folder):
+                    return last_folder
+    except Exception as e:
+        print(f"설정 파일 로드 중 오류 발생: {e}")
+    return None
+
+
+def save_last_folder(folder_path):
+    """선택한 폴더 경로를 저장합니다."""
+    try:
+        config = {"last_folder": folder_path}
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"설정 파일 저장 중 오류 발생: {e}")
 
 
 def find_pdf_files(root_dir=".", log_callback=None):
@@ -1344,20 +1371,27 @@ def main():
     parser.add_argument(
         "--plots", action="store_true", help="Generate performance plots"
     )
+    parser.add_argument("--folder", help="Specify folder path directly")
     args = parser.parse_args()
 
     try:
+        # 폴더 경로가 지정된 경우에만 처리
+        if not args.folder:
+            print("폴더 경로를 지정해주세요.")
+            sys.exit(1)
+
+        folder_path = args.folder
+
         # Create reports and plots directories
-        reports_dir = "reports"
+        reports_dir = os.path.join(os.path.dirname(folder_path), "reports")
         plots_dir = os.path.join(reports_dir, "plots")
         os.makedirs(reports_dir, exist_ok=True)
         os.makedirs(plots_dir, exist_ok=True)
-        print(f"Created directories:\n- {reports_dir}\n- {plots_dir}")
+        print(f"생성된 디렉토리:\n- {reports_dir}\n- {plots_dir}")
 
         # Process PDF files
-        folder_data = process_pdf_files()
+        folder_data = process_pdf_files(folder_path)
 
-        # Generate reports
         if folder_data:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -1372,33 +1406,31 @@ def main():
                     folder_data, reports_dir, timestamp
                 )
                 if details_excel and averages_excel:
-                    print(f"\nExcel reports generated:")
-                    print(f"1. Details report: {details_excel}")
-                    print(f"2. Averages report: {averages_excel}")
+                    print(f"\nExcel 리포트 생성됨:")
+                    print(f"1. 상세 리포트: {details_excel}")
+                    print(f"2. 평균값 리포트: {averages_excel}")
                 else:
-                    print("\nFailed to generate Excel reports.")
+                    print("\nExcel 리포트 생성 실패.")
 
             # Generate plots if requested
             if args.plots:
                 generate_performance_plots(folder_data, timestamp)
 
             if fixed_md and timestamped_md and fixed_html and timestamped_html:
-                print(f"\nGenerated reports:")
-                print(f"1. Fixed filename markdown report: {os.path.abspath(fixed_md)}")
+                print(f"\n생성된 리포트:")
+                print(f"1. 고정 파일명 마크다운 리포트: {os.path.abspath(fixed_md)}")
                 print(
-                    f"2. Timestamped markdown report: {os.path.abspath(timestamped_md)}"
+                    f"2. 타임스탬프 마크다운 리포트: {os.path.abspath(timestamped_md)}"
                 )
-                print(f"3. Fixed filename HTML report: {os.path.abspath(fixed_html)}")
-                print(
-                    f"4. Timestamped HTML report: {os.path.abspath(timestamped_html)}"
-                )
+                print(f"3. 고정 파일명 HTML 리포트: {os.path.abspath(fixed_html)}")
+                print(f"4. 타임스탬프 HTML 리포트: {os.path.abspath(timestamped_html)}")
             else:
-                print("\nReport generation failed.")
+                print("\n리포트 생성 실패.")
         else:
-            print("\nNo data was processed successfully. Reports not generated.")
+            print("\n데이터 처리 실패. 리포트가 생성되지 않았습니다.")
 
     except Exception as e:
-        print(f"Error in main function: {e}")
+        print(f"메인 함수 실행 중 오류 발생: {e}")
         sys.exit(1)
 
 

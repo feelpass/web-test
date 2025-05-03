@@ -23,6 +23,8 @@ from main import (
     generate_folder_report,
     export_to_excel,
     generate_performance_plots,
+    get_last_folder,
+    save_last_folder,
 )
 
 
@@ -117,6 +119,12 @@ class MainWindow(QMainWindow):
         self.folder_path = QLineEdit()
         self.folder_path.setReadOnly(True)
         self.folder_path.setPlaceholderText("PDF 파일을 검색할 폴더를 선택하세요")
+
+        # 마지막으로 선택한 폴더 로드
+        last_folder = get_last_folder()
+        if last_folder:
+            self.folder_path.setText(last_folder)
+
         folder_layout.addWidget(self.folder_path)
 
         select_folder_button = QPushButton("폴더 선택")
@@ -170,11 +178,13 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(
             self,
             "PDF 파일을 검색할 폴더 선택",
-            os.path.expanduser("~"),
+            self.folder_path.text()
+            or os.path.expanduser("~"),  # 현재 선택된 폴더나 홈 디렉토리에서 시작
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
         )
         if folder:
             self.folder_path.setText(folder)
+            save_last_folder(folder)  # 선택한 폴더 저장
 
     def start_processing(self):
         if not self.folder_path.text():
