@@ -32,7 +32,35 @@ python main_gui.py
 
 3. 명령줄 버전 실행:
 ```bash
-python main.py --plots --excel
+# 기본 실행 (폴더 지정 필수)
+python main.py --folder <폴더경로>
+
+# 모든 옵션 사용
+python main.py --folder <폴더경로> --excel --plots
+```
+
+### 명령줄 인자 설명
+
+`main.py`는 다음과 같은 명령줄 인자를 지원합니다:
+
+- `--folder`: (필수) PDF 파일이 있는 폴더 경로를 지정합니다.
+  ```bash
+  python main.py --folder ./data
+  ```
+
+- `--excel`: (선택) Excel 리포트를 생성합니다. 상세 데이터와 평균값 파일이 생성됩니다.
+  ```bash
+  python main.py --folder ./data --excel
+  ```
+
+- `--plots`: (선택) 성능 차트를 생성합니다. 지역별, 통신사별 성능 분석 차트가 생성됩니다.
+  ```bash
+  python main.py --folder ./data --plots
+  ```
+
+모든 옵션을 함께 사용할 수 있습니다:
+```bash
+python main.py --folder ./data --excel --plots
 ```
 
 ## 실행 파일 빌드 방법
