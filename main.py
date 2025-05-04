@@ -440,6 +440,8 @@ def process_pdf_files(root_dir=".", log_callback=None):
             log_callback(f"\n처리 중: {pdf_file}\n")
 
         text = extract_text_from_pdf(pdf_file, log_callback)
+        text = re.sub(r"\s*\.\s*", ".", text)
+        print(text)
         if not text:
             if log_callback:
                 log_callback(

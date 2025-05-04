@@ -37,3 +37,4 @@ env/
 *.pdf
 
 reports/folder_metrics_report.md
+config.json
