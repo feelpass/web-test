@@ -152,6 +152,19 @@ class PDFMetricsApp:
         )
         self.process_button.pack(side=tk.LEFT, padx=5)
 
+        self.export_excel_button = tk.Button(
+            self.buttons_frame,
+            text="Export to Excel",
+            command=self.export_to_excel,
+            bg="#4CAF50",
+            fg="white",
+            padx=20,
+            pady=10,
+            font=("Arial", 12),
+            state=tk.DISABLED,
+        )
+        self.export_excel_button.pack(side=tk.LEFT, padx=5)
+
         self.open_report_button = tk.Button(
             self.buttons_frame,
             text="Open Full Report",
@@ -374,6 +387,9 @@ class PDFMetricsApp:
                     )
                     if fixed_report_path and timestamped_report_path:
                         self.latest_report = os.path.abspath(fixed_report_path)
+                        self.folder_data = (
+                            folder_data  # Store folder_data for Excel export
+                        )
                         self.update_console(
                             f"\nGenerated reports:\n"
                             f"1. Fixed filename report: {os.path.abspath(fixed_report_path)}\n"
@@ -390,6 +406,11 @@ class PDFMetricsApp:
                                 )
                         except Exception as e:
                             self.update_console(f"Error reading report: {e}\n")
+
+                        # Enable Excel export button
+                        self.root.after(
+                            0, lambda: self.export_excel_button.config(state=tk.NORMAL)
+                        )
                     else:
                         self.update_console("Failed to generate reports.\n")
                 else:
@@ -509,6 +530,47 @@ class PDFMetricsApp:
         else:
             self.restore_stdout()
             self.root.destroy()
+
+    def export_to_excel(self):
+        """Export the processed data to Excel files"""
+        if not hasattr(self, "folder_data") or not self.folder_data:
+            messagebox.showwarning(
+                "No Data",
+                "No data available for export. Please process PDF files first.",
+            )
+            return
+
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            details_excel, averages_excel = export_to_excel(
+                self.folder_data, "reports", timestamp
+            )
+
+            if details_excel and averages_excel:
+                if messagebox.askyesno(
+                    "Export Complete",
+                    "Excel files have been generated successfully. Would you like to open the folder containing the files?",
+                ):
+                    self.open_reports_folder()
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Error exporting to Excel: {str(e)}")
+
+    def open_reports_folder(self):
+        """Open the reports folder in file explorer"""
+        reports_dir = os.path.join(os.path.dirname(self.latest_report))
+        if not os.path.exists(reports_dir):
+            messagebox.showwarning(
+                "Folder Not Found",
+                "Reports folder not found.",
+            )
+            return
+
+        if sys.platform == "win32":
+            os.startfile(reports_dir)
+        elif sys.platform == "darwin":  # macOS
+            subprocess.call(["open", reports_dir])
+        else:  # Linux
+            subprocess.call(["xdg-open", reports_dir])
 
 
 if __name__ == "__main__":
