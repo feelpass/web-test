@@ -418,9 +418,9 @@ def process_pdf_files(root_dir=".", log_callback=None):
                 log_callback(f"현재 폴더에 리포트 폴더 생성 중 오류 발생: {e2}\n")
             return None
 
-    # Initialize folder_data with reports_dir information
+    # Initialize folder_data with reports_dir and root_abs information
     folder_data = defaultdict(lambda: defaultdict(list))
-    folder_data["_config"] = {"reports_dir": reports_dir}
+    folder_data["_config"] = {"reports_dir": reports_dir, "root_abs": root_abs}
 
     pdf_files = find_pdf_files(root_dir, log_callback)
 
@@ -478,8 +478,9 @@ def generate_folder_report(folder_data, log_callback=None):
         log_callback("마크다운 및 HTML 리포트 생성 중...\n")
 
     try:
-        # Get reports directory from folder_data
+        # Get reports directory and root_abs from folder_data
         reports_dir = folder_data.get("_config", {}).get("reports_dir")
+        root_abs = folder_data.get("_config", {}).get("root_abs", "")
         if not reports_dir:
             if log_callback:
                 log_callback("reports 디렉토리 경로를 찾을 수 없습니다.\n")
@@ -537,7 +538,8 @@ def generate_folder_report(folder_data, log_callback=None):
 
         # Calculate column widths for summary table
         folder_col_width = max(
-            max(len(folder) for folder in sorted_folders), len("Folder Path")
+            max(len(os.path.relpath(folder, root_abs)) for folder in sorted_folders),
+            len("Folder Path"),
         )
         files_col_width = max(5, len("Number of Files"))
         playtime_col_width = max(15, len("Avg Playtime (s)"))
@@ -620,15 +622,23 @@ def generate_folder_report(folder_data, log_callback=None):
             else:
                 avg_rtt_str = "N/A"
 
+            # 폴더 경로를 선택한 폴더(root_abs) 기준 상대경로로 변환
+            rel_folder = os.path.relpath(folder, root_abs)
+            if rel_folder == ".":
+                rel_folder = "(root)"
+
             # Add row to report
-            report_content += f"| {folder.ljust(folder_col_width)} | {str(num_files).ljust(files_col_width)} | {avg_playtime_str.ljust(playtime_col_width)} | {avg_fps_str.ljust(fps_col_width)} | {avg_bw_str.ljust(bw_col_width)} | {avg_rtt_str.ljust(rtt_col_width)} |\n"
+            report_content += f"| {rel_folder.ljust(folder_col_width)} | {str(num_files).ljust(files_col_width)} | {avg_playtime_str.ljust(playtime_col_width)} | {avg_fps_str.ljust(fps_col_width)} | {avg_bw_str.ljust(bw_col_width)} | {avg_rtt_str.ljust(rtt_col_width)} |\n"
 
         # Add detailed metrics for each folder
         report_content += "\n## Detailed Metrics by Folder\n\n"
         for folder in sorted_folders:
             folder_info = folder_data[folder]
             files = folder_info.get("files", [])
-            report_content += f"### {folder}\n\n"
+            rel_folder = os.path.relpath(folder, root_abs)
+            if rel_folder == ".":
+                rel_folder = "(root)"
+            report_content += f"### {rel_folder}\n\n"
 
             # Create table header
             report_content += (
@@ -713,9 +723,10 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         log_callback("Excel 파일 생성 중...\n")
 
     try:
-        # Get reports directory from folder_data if not provided
+        # Get reports directory and root_abs from folder_data if not provided
         if reports_dir is None:
             reports_dir = folder_data.get("_config", {}).get("reports_dir", "reports")
+        root_abs = folder_data.get("_config", {}).get("root_abs", "")
 
         # Create timestamp if not provided
         if timestamp is None:
@@ -741,39 +752,37 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         color1 = "FFFFFF"  # White
         color2 = "F5F5F5"  # Very light gray
 
-        # Set up headers
+        # Set up headers (new order)
         headers = [
-            "Folder",
-            "Filename",
             "Date",
+            "Network Type",
             "City",
             "Area",
             "Region",
-            "Carrier",
-            "Network Type",
-            "Game",
             "Device",
+            "Game",
             "FPS",
             "Bandwidth (Mbps)",
             "RTT (ms)",
             "Playtime (s)",
+            "Folder",
+            "Filename",
         ]
 
-        # Set up headers for averages
+        # Set up headers for averages (new order)
         avg_headers = [
-            "Folder",
             "Date",
+            "Network Type",
             "City",
             "Area",
             "Region",
-            "Carrier",
-            "Network Type",
-            "Game",
             "Device",
+            "Game",
             "Average FPS",
             "Average Bandwidth (Mbps)",
             "Average RTT (ms)",
             "Average Playtime (s)",
+            "Folder",
             "Number of Files",
         ]
 
@@ -807,27 +816,31 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
             # Parse folder path
             path_components = parse_folder_path(folder)
 
+            # 폴더 경로를 선택한 폴더(root_abs) 기준 상대경로로 변환
+            rel_folder = os.path.relpath(folder, root_abs)
+            if rel_folder == ".":
+                rel_folder = "(root)"
+
             for file_data in files:
                 data_row = {
-                    "folder": folder,
-                    "filename": file_data.get("filename", "Unknown"),
-                    "date": path_components["date"],
-                    "city": path_components["city"],
-                    "area": path_components["area"],
-                    "region": path_components["region"],
-                    "carrier": path_components["carrier"],
-                    "network": path_components["network"],
-                    "game": path_components["game"],
-                    "device": path_components["device"],
-                    "fps": file_data.get("fps", -1),
-                    "bandwidth": file_data.get("bandwidth", -1),
-                    "rtt": file_data.get("rtt", -1),
-                    "playtime": file_data.get("playtime", -1),
+                    "Date": path_components["date"],
+                    "Network Type": path_components["network"],
+                    "City": path_components["city"],
+                    "Area": path_components["area"],
+                    "Region": path_components["region"],
+                    "Device": path_components["device"],
+                    "Game": path_components["game"],
+                    "FPS": file_data.get("fps", -1),
+                    "Bandwidth (Mbps)": file_data.get("bandwidth", -1),
+                    "RTT (ms)": file_data.get("rtt", -1),
+                    "Playtime (s)": file_data.get("playtime", -1),
+                    "Folder": rel_folder,
+                    "Filename": file_data.get("filename", "Unknown"),
                 }
                 all_data.append(data_row)
 
         # Sort data by folder name
-        all_data.sort(key=lambda x: x["folder"].lower())
+        all_data.sort(key=lambda x: x["Folder"].lower())
 
         # Fill details data with alternating colors
         row = 2
@@ -836,8 +849,8 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
 
         for data in all_data:
             # Check if folder changed
-            if current_folder != data["folder"]:
-                current_folder = data["folder"]
+            if current_folder != data["Folder"]:
+                current_folder = data["Folder"]
                 color_toggle = not color_toggle  # Switch color for new folder
 
             # Apply background color to entire row
@@ -848,21 +861,9 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                     start_color=fill_color, end_color=fill_color, fill_type="solid"
                 )
 
-            # Fill data
-            ws_details.cell(row=row, column=1, value=data["folder"])
-            ws_details.cell(row=row, column=2, value=data["filename"])
-            ws_details.cell(row=row, column=3, value=data["date"])
-            ws_details.cell(row=row, column=4, value=data["city"])
-            ws_details.cell(row=row, column=5, value=data["area"])
-            ws_details.cell(row=row, column=6, value=data["region"])
-            ws_details.cell(row=row, column=7, value=data["carrier"])
-            ws_details.cell(row=row, column=8, value=data["network"])
-            ws_details.cell(row=row, column=9, value=data["game"])
-            ws_details.cell(row=row, column=10, value=data["device"])
-            ws_details.cell(row=row, column=11, value=data["fps"])
-            ws_details.cell(row=row, column=12, value=data["bandwidth"])
-            ws_details.cell(row=row, column=13, value=data["rtt"])
-            ws_details.cell(row=row, column=14, value=data["playtime"])
+            # Fill data in new order
+            for col, header in enumerate(headers, 1):
+                ws_details.cell(row=row, column=col, value=data[header])
             row += 1
 
         # Auto-adjust column widths
@@ -892,13 +893,10 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         color_toggle = True  # Reset color toggle for averages sheet
 
         for folder in sorted_folders:
-            # Apply background color to entire row
-            fill_color = color1 if color_toggle else color2
-            for col in range(1, len(avg_headers) + 1):
-                cell = ws_averages.cell(row=row, column=col)
-                cell.fill = PatternFill(
-                    start_color=fill_color, end_color=fill_color, fill_type="solid"
-                )
+            # 폴더 경로를 선택한 폴더(root_abs) 기준 상대경로로 변환
+            rel_folder = os.path.relpath(folder, root_abs)
+            if rel_folder == ".":
+                rel_folder = "(root)"
 
             folder_info = folder_data[folder]
             files = folder_info.get("files", [])
@@ -931,31 +929,34 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                 sum(playtime_values) / len(playtime_values) if playtime_values else -1
             )
 
-            # Fill data for averages
-            ws_averages.cell(row=row, column=1, value=folder)
-            ws_averages.cell(row=row, column=2, value=path_components["date"])
-            ws_averages.cell(row=row, column=3, value=path_components["city"])
-            ws_averages.cell(row=row, column=4, value=path_components["area"])
-            ws_averages.cell(row=row, column=5, value=path_components["region"])
-            ws_averages.cell(row=row, column=6, value=path_components["carrier"])
-            ws_averages.cell(row=row, column=7, value=path_components["network"])
-            ws_averages.cell(row=row, column=8, value=path_components["game"])
-            ws_averages.cell(row=row, column=9, value=path_components["device"])
-            ws_averages.cell(
-                row=row, column=10, value=round(avg_fps, 2) if avg_fps > 0 else "N/A"
-            )
-            ws_averages.cell(
-                row=row, column=11, value=round(avg_bw, 2) if avg_bw > 0 else "N/A"
-            )
-            ws_averages.cell(
-                row=row, column=12, value=round(avg_rtt, 2) if avg_rtt > 0 else "N/A"
-            )
-            ws_averages.cell(
-                row=row,
-                column=13,
-                value=round(avg_playtime, 2) if avg_playtime > 0 else "N/A",
-            )
-            ws_averages.cell(row=row, column=14, value=len(files))
+            # Apply background color to entire row
+            fill_color = color1 if color_toggle else color2
+            for col in range(1, len(avg_headers) + 1):
+                cell = ws_averages.cell(row=row, column=col)
+                cell.fill = PatternFill(
+                    start_color=fill_color, end_color=fill_color, fill_type="solid"
+                )
+
+            # Fill data for averages in new order
+            avg_data = {
+                "Date": path_components["date"],
+                "Network Type": path_components["network"],
+                "City": path_components["city"],
+                "Area": path_components["area"],
+                "Region": path_components["region"],
+                "Device": path_components["device"],
+                "Game": path_components["game"],
+                "Average FPS": round(avg_fps, 2) if avg_fps > 0 else "N/A",
+                "Average Bandwidth (Mbps)": round(avg_bw, 2) if avg_bw > 0 else "N/A",
+                "Average RTT (ms)": round(avg_rtt, 2) if avg_rtt > 0 else "N/A",
+                "Average Playtime (s)": (
+                    round(avg_playtime, 2) if avg_playtime > 0 else "N/A"
+                ),
+                "Folder": rel_folder,
+                "Number of Files": len(files),
+            }
+            for col, header in enumerate(avg_headers, 1):
+                ws_averages.cell(row=row, column=col, value=avg_data[header])
 
             row += 1
             color_toggle = not color_toggle  # Switch color for next folder
