@@ -1,4 +1,4 @@
-# PDF 성능 리포트 생성기
+# PDF Performance Report Generator
 
 PDF 파일에서 성능 데이터를 추출하고 분석하여 리포트를 생성하는 프로그램입니다.
 
@@ -16,7 +16,7 @@ PDF 파일에서 성능 데이터를 추출하고 분석하여 리포트를 생�
 
 1. [Releases](releases) 페이지에서 최신 버전의 실행 파일을 다운로드합니다.
 2. 다운로드한 파일을 원하는 위치에 압축 해제합니다.
-3. `PDF리포트생성기.app` (macOS) 또는 `PDF리포트생성기.exe` (Windows)를 실행합니다.
+3. `PDFReportGenerator.app` (macOS) 또는 `PDFReportGenerator.exe` (Windows)를 실행합니다.
 
 ### 2. 소스코드로 실행 (개발자)
 
@@ -68,18 +68,18 @@ python main.py --folder ./data --excel --plots
 ### macOS
 ```bash
 # GUI 앱 빌드 (앱 번들 생성)
-pyinstaller --windowed --onedir --name "PDF리포트생성기" --add-data "main.py:." --noconfirm main_gui.py
+pyinstaller --windowed --onedir --name "PDFReportGenerator" --add-data "main.py:." --noconfirm main_gui.py
 ```
 
 ### Windows
 ```bash
 # GUI 앱 빌드 (실행 파일 생성)
-pyinstaller --windowed --onefile --name "PDF리포트생성기" --add-data "main.py;." main_gui.py
+pyinstaller --windowed --onefile --name "PDFReportGenerator" --add-data "main.py;." main_gui.py
 ```
 
 생성된 실행 파일은 `dist` 폴더에서 찾을 수 있습니다:
-- macOS: `dist/PDF리포트생성기.app`
-- Windows: `dist/PDF리포트생성기.exe`
+- macOS: `dist/PDFReportGenerator.app`
+- Windows: `dist/PDFReportGenerator.exe`
 
 ## 사용 방법
 
