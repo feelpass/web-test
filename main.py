@@ -536,27 +536,32 @@ def generate_folder_report(folder_data, log_callback=None):
         report_content += "## Summary by Folder\n\n"
         report_content += "Note: Averages are calculated after excluding the highest and lowest values.\n\n"
 
-        # Calculate column widths for summary table
-        folder_col_width = max(
-            max(len(os.path.relpath(folder, root_abs)) for folder in sorted_folders),
-            len("Folder Path"),
+        # Summary by Folder - new order
+        summary_headers = [
+            "Date",
+            "Network Type",
+            "City",
+            "Area",
+            "Region",
+            "Device",
+            "Game",
+            "Average FPS",
+            "Average Bandwidth (Mbps)",
+            "Average RTT (ms)",
+            "Average Playtime (s)",
+            "Folder",
+            "Number of Files",
+        ]
+        report_content += "| " + " | ".join(summary_headers) + " |\n"
+        report_content += (
+            "|" + "|".join(["-" * len(h) for h in summary_headers]) + "|\n"
         )
-        files_col_width = max(5, len("Number of Files"))
-        playtime_col_width = max(15, len("Avg Playtime (s)"))
-        fps_col_width = max(15, len("Average FPS"))
-        bw_col_width = max(15, len("Average Bandwidth (Mbps)"))
-        rtt_col_width = max(15, len("Average RTT (ms)"))
 
-        # Create header row with dynamic width
-        report_content += f"| {'Folder Path'.ljust(folder_col_width)} | {'Number of Files'.ljust(files_col_width)} | {'Avg Playtime (s)'.ljust(playtime_col_width)} | {'Average FPS'.ljust(fps_col_width)} | {'Average Bandwidth (Mbps)'.ljust(bw_col_width)} | {'Average RTT (ms)'.ljust(rtt_col_width)} |\n"
-        report_content += f"| {'-' * folder_col_width} | {'-' * files_col_width} | {'-' * playtime_col_width} | {'-' * fps_col_width} | {'-' * bw_col_width} | {'-' * rtt_col_width} |\n"
-
-        # Add data rows
         for folder in sorted_folders:
             folder_info = folder_data[folder]
             files = folder_info.get("files", [])
             num_files = len(files)
-
+            path_components = parse_folder_path(folder)
             # Calculate averages
             valid_playtimes = [
                 file.get("playtime")
@@ -580,58 +585,81 @@ def generate_folder_report(folder_data, log_callback=None):
                 for file in files
                 if isinstance(file.get("rtt"), (int, float)) and file.get("rtt") > 0
             ]
-
             # Calculate averages (excluding min/max if enough values)
             if len(valid_playtimes) >= 3:
                 sorted_playtimes = sorted(valid_playtimes)
                 avg_playtime = sum(sorted_playtimes[1:-1]) / len(sorted_playtimes[1:-1])
-                avg_playtime_str = f"{avg_playtime:.2f}"
             elif valid_playtimes:
                 avg_playtime = sum(valid_playtimes) / len(valid_playtimes)
-                avg_playtime_str = f"{avg_playtime:.2f}"
             else:
-                avg_playtime_str = "N/A"
-
+                avg_playtime = None
             if len(valid_fps) >= 3:
                 sorted_fps = sorted(valid_fps)
                 avg_fps = sum(sorted_fps[1:-1]) / len(sorted_fps[1:-1])
-                avg_fps_str = f"{avg_fps:.2f}"
             elif valid_fps:
                 avg_fps = sum(valid_fps) / len(valid_fps)
-                avg_fps_str = f"{avg_fps:.2f}"
             else:
-                avg_fps_str = "N/A"
-
+                avg_fps = None
             if len(valid_bandwidths) >= 3:
                 sorted_bw = sorted(valid_bandwidths)
                 avg_bw = sum(sorted_bw[1:-1]) / len(sorted_bw[1:-1])
-                avg_bw_str = f"{avg_bw:.2f}"
             elif valid_bandwidths:
                 avg_bw = sum(valid_bandwidths) / len(valid_bandwidths)
-                avg_bw_str = f"{avg_bw:.2f}"
             else:
-                avg_bw_str = "N/A"
-
+                avg_bw = None
             if len(valid_rtts) >= 3:
                 sorted_rtt = sorted(valid_rtts)
                 avg_rtt = sum(sorted_rtt[1:-1]) / len(sorted_rtt[1:-1])
-                avg_rtt_str = f"{avg_rtt:.2f}"
             elif valid_rtts:
                 avg_rtt = sum(valid_rtts) / len(valid_rtts)
-                avg_rtt_str = f"{avg_rtt:.2f}"
             else:
-                avg_rtt_str = "N/A"
-
-            # 폴더 경로를 선택한 폴더(root_abs) 기준 상대경로로 변환
+                avg_rtt = None
             rel_folder = os.path.relpath(folder, root_abs)
             if rel_folder == ".":
                 rel_folder = "(root)"
 
-            # Add row to report
-            report_content += f"| {rel_folder.ljust(folder_col_width)} | {str(num_files).ljust(files_col_width)} | {avg_playtime_str.ljust(playtime_col_width)} | {avg_fps_str.ljust(fps_col_width)} | {avg_bw_str.ljust(bw_col_width)} | {avg_rtt_str.ljust(rtt_col_width)} |\n"
+            def fmt(val):
+                return (
+                    f"{val:.2f}"
+                    if isinstance(val, (int, float)) and val is not None
+                    else (val if val not in [None, -1] else "N/A")
+                )
+
+            row_data = {
+                "Date": path_components["date"],
+                "Network Type": path_components["network"],
+                "City": path_components["city"],
+                "Area": path_components["area"],
+                "Region": path_components["region"],
+                "Device": path_components["device"],
+                "Game": path_components["game"],
+                "Average FPS": fmt(avg_fps),
+                "Average Bandwidth (Mbps)": fmt(avg_bw),
+                "Average RTT (ms)": fmt(avg_rtt),
+                "Average Playtime (s)": fmt(avg_playtime),
+                "Folder": rel_folder,
+                "Number of Files": str(num_files),
+            }
+            row = [str(row_data[h]) for h in summary_headers]
+            report_content += "| " + " | ".join(row) + " |\n"
 
         # Add detailed metrics for each folder
         report_content += "\n## Detailed Metrics by Folder\n\n"
+        detail_headers = [
+            "Date",
+            "Network Type",
+            "City",
+            "Area",
+            "Region",
+            "Device",
+            "Game",
+            "FPS",
+            "Bandwidth (Mbps)",
+            "RTT (ms)",
+            "Playtime (s)",
+            "Folder",
+            "Filename",
+        ]
         for folder in sorted_folders:
             folder_info = folder_data[folder]
             files = folder_info.get("files", [])
@@ -640,41 +668,41 @@ def generate_folder_report(folder_data, log_callback=None):
                 rel_folder = "(root)"
             report_content += f"### {rel_folder}\n\n"
 
-            # Create table header
+            # Create table header (new order)
+            report_content += "| " + " | ".join(detail_headers) + " |\n"
             report_content += (
-                "| Filename | Playtime (s) | FPS | Bandwidth (Mbps) | RTT (ms) |\n"
-            )
-            report_content += (
-                "|----------|--------------|-----|-----------------|----------|\n"
+                "|" + "|".join(["-" * len(h) for h in detail_headers]) + "|\n"
             )
 
-            # Add file data
+            # Add file data in new order
             for file_data in sorted(files, key=lambda x: x.get("filename", "")):
-                filename = file_data.get("filename", "Unknown")
-                playtime = file_data.get("playtime", "N/A")
-                fps = file_data.get("fps", "N/A")
-                bandwidth = file_data.get("bandwidth", "N/A")
-                rtt = file_data.get("rtt", "N/A")
+                path_components = parse_folder_path(folder)
+                row_data = {
+                    "Date": path_components["date"],
+                    "Network Type": path_components["network"],
+                    "City": path_components["city"],
+                    "Area": path_components["area"],
+                    "Region": path_components["region"],
+                    "Device": path_components["device"],
+                    "Game": path_components["game"],
+                    "FPS": file_data.get("fps", "N/A"),
+                    "Bandwidth (Mbps)": file_data.get("bandwidth", "N/A"),
+                    "RTT (ms)": file_data.get("rtt", "N/A"),
+                    "Playtime (s)": file_data.get("playtime", "N/A"),
+                    "Folder": rel_folder,
+                    "Filename": file_data.get("filename", "Unknown"),
+                }
 
                 # Format values
-                playtime_str = (
-                    f"{playtime:.2f}"
-                    if isinstance(playtime, (int, float)) and playtime > 0
-                    else "N/A"
-                )
-                fps_str = (
-                    f"{fps:.2f}" if isinstance(fps, (int, float)) and fps > 0 else "N/A"
-                )
-                bandwidth_str = (
-                    f"{bandwidth:.2f}"
-                    if isinstance(bandwidth, (int, float)) and bandwidth > 0
-                    else "N/A"
-                )
-                rtt_str = (
-                    f"{rtt:.2f}" if isinstance(rtt, (int, float)) and rtt > 0 else "N/A"
-                )
+                def fmt(val):
+                    return (
+                        f"{val:.2f}"
+                        if isinstance(val, (int, float)) and val > 0
+                        else (val if val != -1 else "N/A")
+                    )
 
-                report_content += f"| {filename} | {playtime_str} | {fps_str} | {bandwidth_str} | {rtt_str} |\n"
+                row = [fmt(row_data[h]) for h in detail_headers]
+                report_content += "| " + " | ".join(row) + " |\n"
 
             report_content += "\n"
 
