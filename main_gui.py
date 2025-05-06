@@ -33,6 +33,7 @@ class ProcessorThread(QThread):
     error = Signal(str)
     progress = Signal(str)
     log = Signal(str)
+    progress_count = Signal(int, int)  # (current, total)
 
     def __init__(self, excel_enabled, plots_enabled, root_dir="."):
         super().__init__()
@@ -44,7 +45,15 @@ class ProcessorThread(QThread):
         try:
             # PDF 파일 처리
             self.progress.emit("PDF 파일 처리 중...")
-            folder_data = process_pdf_files(self.root_dir, log_callback=self.log.emit)
+
+            def progress_callback(current, total):
+                self.progress_count.emit(current, total)
+
+            folder_data = process_pdf_files(
+                self.root_dir,
+                log_callback=self.log.emit,
+                progress_callback=progress_callback,
+            )
 
             if not folder_data:
                 self.error.emit("PDF 파일 처리 중 오류가 발생했습니다.")
@@ -165,6 +174,10 @@ class MainWindow(QMainWindow):
         # 진행 상태 표시줄
         self.progress_label = QLabel("대기 중...")
         layout.addWidget(self.progress_label)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
 
         # 시작 버튼
         self.start_button = QPushButton("리포트 생성 시작")
@@ -194,6 +207,8 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
         self.log_output.clear()
         self.progress_label.setText("처리 중...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setMaximum(0)  # Indeterminate until we know total
 
         # 새 프로세서 스레드 생성
         self.processor_thread = ProcessorThread(
@@ -207,6 +222,7 @@ class MainWindow(QMainWindow):
         self.processor_thread.error.connect(self.handle_error)
         self.processor_thread.finished.connect(self.handle_completion)
         self.processor_thread.log.connect(self.append_log)
+        self.processor_thread.progress_count.connect(self.update_progress_count)
 
         # 스레드 시작
         self.processor_thread.start()
@@ -242,6 +258,11 @@ class MainWindow(QMainWindow):
             )
         else:
             QMessageBox.warning(self, "경고", "처리된 파일이 없습니다.")
+
+    def update_progress_count(self, current, total):
+        self.progress_label.setText(f"{total}개 중 {current}개 처리 중...")
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(current)
 
 
 def main():

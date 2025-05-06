@@ -2,6 +2,7 @@ import os
 import re
 import glob
 from collections import defaultdict
+import traceback
 import PyPDF2
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -383,7 +384,7 @@ def get_folder_path(pdf_path):
         return "."
 
 
-def process_pdf_files(root_dir=".", log_callback=None):
+def process_pdf_files(root_dir=".", log_callback=None, progress_callback=None):
     """Process all PDF files in the directory structure."""
     if log_callback:
         log_callback("PDF 파일 검색 중...\n")
@@ -423,6 +424,7 @@ def process_pdf_files(root_dir=".", log_callback=None):
     folder_data["_config"] = {"reports_dir": reports_dir, "root_abs": root_abs}
 
     pdf_files = find_pdf_files(root_dir, log_callback)
+    total = len(pdf_files)
 
     if not pdf_files:
         if log_callback:
@@ -435,13 +437,12 @@ def process_pdf_files(root_dir=".", log_callback=None):
             log_callback(f"  - {pdf_file}\n")
         log_callback("\n파일 처리 시작...\n")
 
-    for pdf_file in pdf_files:
+    for idx, pdf_file in enumerate(pdf_files):
         if log_callback:
             log_callback(f"\n처리 중: {pdf_file}\n")
 
         text = extract_text_from_pdf(pdf_file, log_callback)
         text = re.sub(r"\s*\.\s*", ".", text)
-        print(text)
         if not text:
             if log_callback:
                 log_callback(
@@ -466,10 +467,19 @@ def process_pdf_files(root_dir=".", log_callback=None):
                 if key != "filename":  # filename은 이미 위에서 표시했으므로 제외
                     log_callback(f"  - {key}: {value}\n")
 
+        if progress_callback:
+            progress_callback(idx + 1, total)
+
     if log_callback:
         log_callback("\nPDF 파일 처리가 완료되었습니다.\n")
 
-    return folder_data
+    # 마지막에 folder_data와 내부를 모두 dict로 변환해서 반환
+    def deep_dict(obj):
+        if isinstance(obj, defaultdict):
+            return {k: deep_dict(v) for k, v in obj.items()}
+        return obj
+
+    return deep_dict(folder_data)
 
 
 def generate_folder_report(folder_data, log_callback=None):
@@ -560,7 +570,9 @@ def generate_folder_report(folder_data, log_callback=None):
 
         for folder in sorted_folders:
             folder_info = folder_data[folder]
-            files = folder_info.get("files", [])
+            if not isinstance(folder_info, dict):
+                folder_info = dict(folder_info)
+            files = list(folder_info.get("files", []))
             num_files = len(files)
             path_components = parse_folder_path(folder)
             # Calculate averages
@@ -665,7 +677,9 @@ def generate_folder_report(folder_data, log_callback=None):
         ]
         for folder in sorted_folders:
             folder_info = folder_data[folder]
-            files = folder_info.get("files", [])
+            if not isinstance(folder_info, dict):
+                folder_info = dict(folder_info)
+            files = list(folder_info.get("files", []))
             rel_folder = os.path.relpath(folder, root_abs)
             if rel_folder == ".":
                 rel_folder = "(root)"
@@ -845,7 +859,9 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         all_data = []
         for folder in sorted_folders:
             folder_info = folder_data[folder]
-            files = folder_info.get("files", [])
+            if not isinstance(folder_info, dict):
+                folder_info = dict(folder_info)
+            files = list(folder_info.get("files", []))
 
             # Parse folder path
             path_components = parse_folder_path(folder)
@@ -934,7 +950,9 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                 rel_folder = "(root)"
 
             folder_info = folder_data[folder]
-            files = folder_info.get("files", [])
+            if not isinstance(folder_info, dict):
+                folder_info = dict(folder_info)
+            files = list(folder_info.get("files", []))
             path_components = parse_folder_path(folder)
 
             # Calculate averages
@@ -1027,7 +1045,9 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                 if rel_folder == ".":
                     rel_folder = "(root)"
                 folder_info = folder_data[folder]
-                files = folder_info.get("files", [])
+                if not isinstance(folder_info, dict):
+                    folder_info = dict(folder_info)
+                files = list(folder_info.get("files", []))
                 path_components = parse_folder_path(folder)
                 fps_values = [f.get("fps", -1) for f in files if f.get("fps", -1) > 0]
                 bw_values = [
@@ -1086,7 +1106,8 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
 
     except Exception as e:
         if log_callback:
-            log_callback(f"Excel 파일 생성 중 오류 발생: {str(e)}\n")
+            log_callback(f"Excel 파일 생성 중 오류 발생: {e}\n")
+            log_callback(traceback.format_exc())  # <-- 전체 스택 트레이스 출력
         return None, None
 
 
@@ -1444,6 +1465,7 @@ def parse_folder_path(path):
             # Check if carrier is wifi (case-insensitive)
             if remaining_parts[3].lower() == "wifi":
                 # For WiFi, network is set to "WIFI" and remaining components shift
+                result["carrier"] = ""  # wifi인 경우 carrier를 빈 문자열로
                 result["network"] = "WIFI"
                 if len(remaining_parts) >= 5:
                     result["game"] = remaining_parts[4]
@@ -1463,9 +1485,9 @@ def parse_folder_path(path):
                     result["device"] = remaining_parts[6]
 
     # Clean up any empty or whitespace-only values
-    for key in result:
+    for key in list(result.keys()):
         if not result[key] or result[key].strip() == "":
-            result["key"] = "Unknown"
+            result[key] = ""
         else:
             result[key] = result[key].strip()
 

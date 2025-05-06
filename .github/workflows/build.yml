@@ -20,8 +20,7 @@ jobs:
         os: [windows-latest]  # macOS 빌드 비활성화
         include:
           - os: windows-latest
-            output_name: PDFReportGenerator.exe
-            pyinstaller_args: --windowed --onefile --name "PDFReportGenerator" --add-data "main.py;." main_gui.py
+            # output_name과 pyinstaller_args는 아래 step에서 동적으로 설정
     
     runs-on: ${{ matrix.os }}
     
@@ -58,13 +57,25 @@ jobs:
       if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
       run: echo "VERSION=dev" >> $GITHUB_ENV
         
+    - name: Set output_name and pyinstaller_args
+      id: set_pyinstaller_args
+      shell: bash
+      run: |
+        if [[ "$VERSION" == "dev" ]]; then
+          OUTNAME="PDFReportGenerator.exe"
+        else
+          OUTNAME="PDFReportGenerator-${VERSION}.exe"
+        fi
+        echo "output_name=$OUTNAME" >> $GITHUB_OUTPUT
+        echo "pyinstaller_args=--windowed --onefile --name \"${OUTNAME%.exe}\" --add-data \"main.py;.\" main_gui.py" >> $GITHUB_OUTPUT
+        
     - name: Build executable with PyInstaller
-      run: pyinstaller ${{ matrix.pyinstaller_args }}
+      run: pyinstaller ${{ steps.set_pyinstaller_args.outputs.pyinstaller_args }}
     
     - name: Display file size
       shell: pwsh
       run: |
-        $filePath = "dist/${{ matrix.output_name }}"
+        $filePath = "dist/${{ steps.set_pyinstaller_args.outputs.output_name }}"
         $fileInfo = Get-Item $filePath
         $fileSizeMB = "{0:N2}" -f ($fileInfo.Length / 1MB)
         echo "File: $filePath"
@@ -74,7 +85,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: PDFReportGenerator-${{ env.VERSION }}-Windows
-        path: dist/${{ matrix.output_name }}
+        path: dist/${{ steps.set_pyinstaller_args.outputs.output_name }}
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/heads/release/')
@@ -84,7 +95,7 @@ jobs:
         tag_name: v${{ steps.extract_version.outputs.version }}
         draft: false
         prerelease: false
-        files: dist/${{ matrix.output_name }}
+        files: dist/${{ steps.set_pyinstaller_args.outputs.output_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
