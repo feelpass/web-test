@@ -1011,6 +1011,77 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         if log_callback:
             log_callback(f"생성된 파일:\n- {details_filename}\n- {averages_filename}\n")
 
+        # CSV 파일로도 저장 (상세/평균)
+        try:
+            # 상세 데이터 CSV
+            details_csv = os.path.join(reports_dir, f"metrics_details_{timestamp}.csv")
+            df_details = pd.DataFrame(all_data, columns=headers)
+            df_details.to_csv(details_csv, index=False, encoding="utf-8-sig")
+            # 평균 데이터 CSV
+            averages_csv = os.path.join(
+                reports_dir, f"metrics_averages_{timestamp}.csv"
+            )
+            avg_rows = []
+            for folder in sorted_folders:
+                rel_folder = os.path.relpath(folder, root_abs)
+                if rel_folder == ".":
+                    rel_folder = "(root)"
+                folder_info = folder_data[folder]
+                files = folder_info.get("files", [])
+                path_components = parse_folder_path(folder)
+                fps_values = [f.get("fps", -1) for f in files if f.get("fps", -1) > 0]
+                bw_values = [
+                    f.get("bandwidth", -1) for f in files if f.get("bandwidth", -1) > 0
+                ]
+                rtt_values = [f.get("rtt", -1) for f in files if f.get("rtt", -1) > 0]
+                playtime_values = [
+                    f.get("playtime", -1) for f in files if f.get("playtime", -1) > 0
+                ]
+                if len(fps_values) >= 3:
+                    fps_values = sorted(fps_values)[1:-1]
+                if len(bw_values) >= 3:
+                    bw_values = sorted(bw_values)[1:-1]
+                if len(rtt_values) >= 3:
+                    rtt_values = sorted(rtt_values)[1:-1]
+                if len(playtime_values) >= 3:
+                    playtime_values = sorted(playtime_values)[1:-1]
+                avg_fps = sum(fps_values) / len(fps_values) if fps_values else -1
+                avg_bw = sum(bw_values) / len(bw_values) if bw_values else -1
+                avg_rtt = sum(rtt_values) / len(rtt_values) if rtt_values else -1
+                avg_playtime = (
+                    sum(playtime_values) / len(playtime_values)
+                    if playtime_values
+                    else -1
+                )
+                avg_data = {
+                    "Date": path_components["date"],
+                    "Network Type": path_components["network"],
+                    "Carrier": path_components["carrier"],
+                    "City": path_components["city"],
+                    "Area": path_components["area"],
+                    "Region": path_components["region"],
+                    "Device": path_components["device"],
+                    "Game": path_components["game"],
+                    "Average FPS": round(avg_fps, 2) if avg_fps > 0 else "N/A",
+                    "Average Bandwidth (Mbps)": (
+                        round(avg_bw, 2) if avg_bw > 0 else "N/A"
+                    ),
+                    "Average RTT (ms)": round(avg_rtt, 2) if avg_rtt > 0 else "N/A",
+                    "Average Playtime (s)": (
+                        round(avg_playtime, 2) if avg_playtime > 0 else "N/A"
+                    ),
+                    "Folder": rel_folder,
+                    "Number of Files": len(files),
+                }
+                avg_rows.append(avg_data)
+            df_avg = pd.DataFrame(avg_rows, columns=avg_headers)
+            df_avg.to_csv(averages_csv, index=False, encoding="utf-8-sig")
+            if log_callback:
+                log_callback(f"CSV 파일도 생성됨:\n- {details_csv}\n- {averages_csv}\n")
+        except Exception as e:
+            if log_callback:
+                log_callback(f"CSV 저장 중 오류 발생: {e}\n")
+
         return details_filename, averages_filename
 
     except Exception as e:
