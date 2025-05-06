@@ -540,6 +540,7 @@ def generate_folder_report(folder_data, log_callback=None):
         summary_headers = [
             "Date",
             "Network Type",
+            "Carrier",
             "City",
             "Area",
             "Region",
@@ -628,6 +629,7 @@ def generate_folder_report(folder_data, log_callback=None):
             row_data = {
                 "Date": path_components["date"],
                 "Network Type": path_components["network"],
+                "Carrier": path_components["carrier"],
                 "City": path_components["city"],
                 "Area": path_components["area"],
                 "Region": path_components["region"],
@@ -648,6 +650,7 @@ def generate_folder_report(folder_data, log_callback=None):
         detail_headers = [
             "Date",
             "Network Type",
+            "Carrier",
             "City",
             "Area",
             "Region",
@@ -680,6 +683,7 @@ def generate_folder_report(folder_data, log_callback=None):
                 row_data = {
                     "Date": path_components["date"],
                     "Network Type": path_components["network"],
+                    "Carrier": path_components["carrier"],
                     "City": path_components["city"],
                     "Area": path_components["area"],
                     "Region": path_components["region"],
@@ -784,6 +788,7 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         headers = [
             "Date",
             "Network Type",
+            "Carrier",
             "City",
             "Area",
             "Region",
@@ -801,6 +806,7 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         avg_headers = [
             "Date",
             "Network Type",
+            "Carrier",
             "City",
             "Area",
             "Region",
@@ -853,6 +859,7 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                 data_row = {
                     "Date": path_components["date"],
                     "Network Type": path_components["network"],
+                    "Carrier": path_components["carrier"],
                     "City": path_components["city"],
                     "Area": path_components["area"],
                     "Region": path_components["region"],
@@ -969,6 +976,7 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
             avg_data = {
                 "Date": path_components["date"],
                 "Network Type": path_components["network"],
+                "Carrier": path_components["carrier"],
                 "City": path_components["city"],
                 "Area": path_components["area"],
                 "Region": path_components["region"],
