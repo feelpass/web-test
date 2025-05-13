@@ -30,6 +30,8 @@ pip install -r requirements.txt
 python main_gui.py
 ```
 
+- **GUI에서 평균 계산 방식 옵션**: FPS, BW, RTT 각각에 대해 원하는 평균 계산 방식을 콤보박스로 선택 가능하며, 선택한 옵션이 리포트/엑셀/파일명에 모두 반영됩니다.
+
 3. 명령줄 버전 실행:
 ```bash
 # 기본 실행 (폴더 지정 필수)
@@ -93,14 +95,15 @@ pyinstaller --windowed --onefile --name "PDFReportGenerator" --add-data "main.py
 
 ## 생성되는 파일
 
-- `reports/folder_metrics_report.md`: 마크다운 형식의 리포트
-- `reports/folder_metrics_report.html`: HTML 형식의 리포트
-- `reports/metrics_details_[날짜시간].xlsx`: 상세 데이터 Excel 파일
-- `reports/metrics_averages_[날짜시간].xlsx`: 평균값 데이터 Excel 파일
+- `reports/folder_metrics_report_fps-minmax_bw-min_rtt-none_20240613_153000.md`: 마크다운 리포트 (옵션이 파일명에 반영됨)
+- `reports/folder_metrics_report_fps-minmax_bw-min_rtt-none_20240613_153000.html`: HTML 리포트
+- `reports/metrics_details_fps-minmax_bw-min_rtt-none_20240613_153000.xlsx`: 상세 데이터 Excel 파일
+- `reports/metrics_averages_fps-minmax_bw-min_rtt-none_20240613_153000.xlsx`: 평균값 및 min/max 포함 Excel 파일
 - `reports/plots/`: 성능 차트 이미지 파일들
 
 ## 주의사항
 
+- 리포트/엑셀 파일명, 리포트 상단 표, 옵션 설명, min/max 표 등에서 실제 사용된 평균 계산 옵션을 반드시 확인하세요.
 - 프로그램은 선택한 폴더와 하위 폴더의 모든 PDF 파일을 처리합니다.
 - 언더스코어(_)로 시작하는 폴더는 처리하지 않습니다.
 - 처리 시간은 PDF 파일의 수와 크기에 따라 달라질 수 있습니다.
@@ -154,3 +157,11 @@ pyinstaller --windowed --onefile --name "PDFReportGenerator" --add-data "main.py
 
 이제 data 폴더에 위와 같은 구조로 PDF 파일을 정리하면 됩니다!  
 추가로 안내가 필요하면 말씀해 주세요.
+
+## 주요 업데이트 (2024-06)
+
+- **평균 계산 방식 옵션화**: FPS, BW, RTT 각각에 대해 평균 계산 시 '최솟값/최댓값 제외', '최솟값만 제외', '최댓값만 제외', '모두 포함' 중 선택 가능
+- **옵션별 파일명 자동 반영**: 리포트/엑셀 파일명에 평균 계산 옵션이 명확히 표시됨 (예: `folder_metrics_report_fps-minmax_bw-min_rtt-none_20240613_153000.md`)
+- **옵션 정보 리포트 표기**: 리포트 상단에 실제 사용된 옵션이 표와 설명으로 기록됨
+- **폴더별 min/max 값 표기**: 리포트와 metrics_averages.xlsx에 폴더별 min/max 값이 표로 추가됨
+- **옵션 config 저장/복원**: GUI에서 선택한 평균 옵션이 config에 저장되어, 프로그램 재실행 시 자동 복원됨

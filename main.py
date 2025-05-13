@@ -34,23 +34,26 @@ CONFIG_FILE = "config.json"
 
 
 def get_last_folder():
-    """마지막으로 선택한 폴더 경로를 반환합니다."""
+    """마지막으로 선택한 폴더 경로와 평균 옵션을 반환합니다."""
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 last_folder = config.get("last_folder")
+                avg_mode = config.get("avg_mode")
                 if last_folder and os.path.exists(last_folder):
-                    return last_folder
+                    return last_folder, avg_mode
     except Exception as e:
         print(f"설정 파일 로드 중 오류 발생: {e}")
-    return None
+    return None, None
 
 
-def save_last_folder(folder_path):
-    """선택한 폴더 경로를 저장합니다."""
+def save_last_folder(folder_path, avg_mode=None):
+    """선택한 폴더 경로와 평균 옵션을 저장합니다."""
     try:
         config = {"last_folder": folder_path}
+        if avg_mode:
+            config["avg_mode"] = avg_mode
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -482,10 +485,12 @@ def process_pdf_files(root_dir=".", log_callback=None, progress_callback=None):
     return deep_dict(folder_data)
 
 
-def generate_folder_report(folder_data, log_callback=None):
+def generate_folder_report(folder_data, log_callback=None, exclude_mode=None):
     """Generate markdown and HTML reports for the folder data."""
     if log_callback:
         log_callback("마크다운 및 HTML 리포트 생성 중...\n")
+    if exclude_mode is None or not isinstance(exclude_mode, dict):
+        exclude_mode = {"fps": "minmax", "bw": "minmax", "rtt": "minmax"}
 
     try:
         # Get reports directory and root_abs from folder_data
@@ -499,17 +504,23 @@ def generate_folder_report(folder_data, log_callback=None):
         if log_callback:
             log_callback(f"리포트 저장 위치: {reports_dir}\n")
 
+        # 옵션 문자열 생성
+        def mode_str(mode):
+            return mode if mode else "minmax"
+
+        opt_str = f"fps-{mode_str(exclude_mode.get('fps'))}_bw-{mode_str(exclude_mode.get('bw'))}_rtt-{mode_str(exclude_mode.get('rtt'))}"
+
         # 현재 시간을 이용한 타임스탬프 생성
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # 파일명 생성
-        fixed_md = os.path.join(reports_dir, "folder_metrics_report.md")
+        # 파일명 생성 (옵션 포함)
+        fixed_md = os.path.join(reports_dir, f"folder_metrics_report_{opt_str}.md")
         timestamped_md = os.path.join(
-            reports_dir, f"folder_metrics_report_{timestamp}.md"
+            reports_dir, f"folder_metrics_report_{opt_str}_{timestamp}.md"
         )
-        fixed_html = os.path.join(reports_dir, "folder_metrics_report.html")
+        fixed_html = os.path.join(reports_dir, f"folder_metrics_report_{opt_str}.html")
         timestamped_html = os.path.join(
-            reports_dir, f"folder_metrics_report_{timestamp}.html"
+            reports_dir, f"folder_metrics_report_{opt_str}_{timestamp}.html"
         )
 
         if log_callback:
@@ -598,35 +609,27 @@ def generate_folder_report(folder_data, log_callback=None):
                 for file in files
                 if isinstance(file.get("rtt"), (int, float)) and file.get("rtt") > 0
             ]
+
             # Calculate averages (excluding min/max if enough values)
-            if len(valid_playtimes) >= 3:
-                sorted_playtimes = sorted(valid_playtimes)
-                avg_playtime = sum(sorted_playtimes[1:-1]) / len(sorted_playtimes[1:-1])
-            elif valid_playtimes:
-                avg_playtime = sum(valid_playtimes) / len(valid_playtimes)
-            else:
-                avg_playtime = None
-            if len(valid_fps) >= 3:
-                sorted_fps = sorted(valid_fps)
-                avg_fps = sum(sorted_fps[1:-1]) / len(sorted_fps[1:-1])
-            elif valid_fps:
-                avg_fps = sum(valid_fps) / len(valid_fps)
-            else:
-                avg_fps = None
-            if len(valid_bandwidths) >= 3:
-                sorted_bw = sorted(valid_bandwidths)
-                avg_bw = sum(sorted_bw[1:-1]) / len(sorted_bw[1:-1])
-            elif valid_bandwidths:
-                avg_bw = sum(valid_bandwidths) / len(valid_bandwidths)
-            else:
-                avg_bw = None
-            if len(valid_rtts) >= 3:
-                sorted_rtt = sorted(valid_rtts)
-                avg_rtt = sum(sorted_rtt[1:-1]) / len(sorted_rtt[1:-1])
-            elif valid_rtts:
-                avg_rtt = sum(valid_rtts) / len(valid_rtts)
-            else:
-                avg_rtt = None
+            def get_avg(values, mode):
+                if not values:
+                    return None
+                if len(values) < 3 or mode == "none":
+                    return sum(values) / len(values)
+                sorted_vals = sorted(values)
+                if mode == "minmax":
+                    return sum(sorted_vals[1:-1]) / len(sorted_vals[1:-1])
+                elif mode == "min":
+                    return sum(sorted_vals[1:]) / len(sorted_vals[1:])
+                elif mode == "max":
+                    return sum(sorted_vals[:-1]) / len(sorted_vals[:-1])
+                else:
+                    return sum(values) / len(values)
+
+            avg_playtime = get_avg(valid_playtimes, "minmax")
+            avg_fps = get_avg(valid_fps, exclude_mode.get("fps", "minmax"))
+            avg_bw = get_avg(valid_bandwidths, exclude_mode.get("bw", "minmax"))
+            avg_rtt = get_avg(valid_rtts, exclude_mode.get("rtt", "minmax"))
             rel_folder = os.path.relpath(folder, root_abs)
             if rel_folder == ".":
                 rel_folder = "(root)"
@@ -724,6 +727,98 @@ def generate_folder_report(folder_data, log_callback=None):
 
             report_content += "\n"
 
+        # 옵션 표 추가
+        report_content += "\n## 평균 계산 옵션\n\n"
+        report_content += "| Metric | Option |\n"
+        report_content += "|--------|--------|\n"
+        report_content += f"| FPS | {exclude_mode.get('fps', 'minmax')} |\n"
+        report_content += f"| BW | {exclude_mode.get('bw', 'minmax')} |\n"
+        report_content += f"| RTT | {exclude_mode.get('rtt', 'minmax')} |\n"
+        report_content += f"| Playtime | minmax (고정) |\n\n"
+
+        # 옵션 설명 Note 동적 생성
+        def mode_desc(mode):
+            if mode == "minmax":
+                return "최솟값과 최댓값을 제외하고 평균을 계산합니다."
+            elif mode == "min":
+                return "최솟값만 제외하고 평균을 계산합니다."
+            elif mode == "max":
+                return "최댓값만 제외하고 평균을 계산합니다."
+            elif mode == "none":
+                return "모든 값을 포함하여 평균을 계산합니다."
+            else:
+                return "(알 수 없음)"
+
+        report_content += "**평균 계산 방식 설명:**\n\n"
+        report_content += f"- FPS: {mode_desc(exclude_mode.get('fps', 'minmax'))}\n"
+        report_content += f"- BW: {mode_desc(exclude_mode.get('bw', 'minmax'))}\n"
+        report_content += f"- RTT: {mode_desc(exclude_mode.get('rtt', 'minmax'))}\n"
+        report_content += (
+            f"- Playtime: 최솟값과 최댓값을 제외하고 평균을 계산합니다. (고정)\n\n"
+        )
+
+        # 폴더별 min/max 표 추가
+        report_content += "## 폴더별 Min/Max 값\n\n"
+        minmax_headers = [
+            "Folder",
+            "FPS Min",
+            "FPS Max",
+            "BW Min",
+            "BW Max",
+            "RTT Min",
+            "RTT Max",
+            "Playtime Min",
+            "Playtime Max",
+        ]
+        report_content += "| " + " | ".join(minmax_headers) + " |\n"
+        report_content += "|" + "|".join(["-" * len(h) for h in minmax_headers]) + "|\n"
+        for folder in sorted_folders:
+            folder_info = folder_data[folder]
+            if not isinstance(folder_info, dict):
+                folder_info = dict(folder_info)
+            files = list(folder_info.get("files", []))
+            rel_folder = os.path.relpath(folder, root_abs)
+            if rel_folder == ".":
+                rel_folder = "(root)"
+            fps_vals = [
+                f.get("fps")
+                for f in files
+                if isinstance(f.get("fps"), (int, float)) and f.get("fps") > 0
+            ]
+            bw_vals = [
+                f.get("bandwidth")
+                for f in files
+                if isinstance(f.get("bandwidth"), (int, float))
+                and f.get("bandwidth") > 0
+            ]
+            rtt_vals = [
+                f.get("rtt")
+                for f in files
+                if isinstance(f.get("rtt"), (int, float)) and f.get("rtt") > 0
+            ]
+            playtime_vals = [
+                f.get("playtime")
+                for f in files
+                if isinstance(f.get("playtime"), (int, float)) and f.get("playtime") > 0
+            ]
+
+            def fmt(val):
+                return f"{val:.2f}" if isinstance(val, (int, float)) else "N/A"
+
+            row = [
+                rel_folder,
+                fmt(min(fps_vals)) if fps_vals else "N/A",
+                fmt(max(fps_vals)) if fps_vals else "N/A",
+                fmt(min(bw_vals)) if bw_vals else "N/A",
+                fmt(max(bw_vals)) if bw_vals else "N/A",
+                fmt(min(rtt_vals)) if rtt_vals else "N/A",
+                fmt(max(rtt_vals)) if rtt_vals else "N/A",
+                fmt(min(playtime_vals)) if playtime_vals else "N/A",
+                fmt(max(playtime_vals)) if playtime_vals else "N/A",
+            ]
+            report_content += "| " + " | ".join(row) + " |\n"
+        report_content += "\n"
+
         if log_callback:
             log_callback("리포트 파일 저장 중...\n")
 
@@ -763,10 +858,23 @@ def generate_folder_report(folder_data, log_callback=None):
         return None, None, None, None
 
 
-def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=None):
+def export_to_excel(
+    folder_data,
+    reports_dir=None,
+    timestamp=None,
+    log_callback=None,
+    exclude_mode=None,
+):
     """Export data to Excel files - one for detailed data and one for averages."""
     if log_callback:
         log_callback("Excel 파일 생성 중...\n")
+    if exclude_mode is None or not isinstance(exclude_mode, dict):
+        exclude_mode = {"fps": "minmax", "bw": "minmax", "rtt": "minmax"}
+
+    def mode_str(mode):
+        return mode if mode else "minmax"
+
+    opt_str = f"fps-{mode_str(exclude_mode.get('fps'))}_bw-{mode_str(exclude_mode.get('bw'))}_rtt-{mode_str(exclude_mode.get('rtt'))}"
 
     try:
         # Get reports directory and root_abs from folder_data if not provided
@@ -778,12 +886,12 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Create Excel files
+        # Create Excel files (옵션 포함)
         details_filename = os.path.join(
-            reports_dir, f"metrics_details_{timestamp}.xlsx"
+            reports_dir, f"metrics_details_{opt_str}_{timestamp}.xlsx"
         )
         averages_filename = os.path.join(
-            reports_dir, f"metrics_averages_{timestamp}.xlsx"
+            reports_dir, f"metrics_averages_{opt_str}_{timestamp}.xlsx"
         )
 
         if log_callback:
@@ -830,6 +938,14 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
             "Average Bandwidth (Mbps)",
             "Average RTT (ms)",
             "Average Playtime (s)",
+            "FPS Min",
+            "FPS Max",
+            "BW Min",
+            "BW Max",
+            "RTT Min",
+            "RTT Max",
+            "Playtime Min",
+            "Playtime Max",
             "Folder",
             "Number of Files",
         ]
@@ -966,21 +1082,38 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
             ]
 
             # Calculate averages (excluding min/max if enough values)
-            if len(fps_values) >= 3:
-                fps_values = sorted(fps_values)[1:-1]
-            if len(bw_values) >= 3:
-                bw_values = sorted(bw_values)[1:-1]
-            if len(rtt_values) >= 3:
-                rtt_values = sorted(rtt_values)[1:-1]
-            if len(playtime_values) >= 3:
-                playtime_values = sorted(playtime_values)[1:-1]
+            def get_avg(values, mode):
+                if not values:
+                    return -1
+                if len(values) < 3 or mode == "none":
+                    return sum(values) / len(values)
+                sorted_vals = sorted(values)
+                if mode == "minmax":
+                    return sum(sorted_vals[1:-1]) / len(sorted_vals[1:-1])
+                elif mode == "min":
+                    return sum(sorted_vals[1:]) / len(sorted_vals[1:])
+                elif mode == "max":
+                    return sum(sorted_vals[:-1]) / len(sorted_vals[:-1])
+                else:
+                    return sum(values) / len(values)
 
-            avg_fps = sum(fps_values) / len(fps_values) if fps_values else -1
-            avg_bw = sum(bw_values) / len(bw_values) if bw_values else -1
-            avg_rtt = sum(rtt_values) / len(rtt_values) if rtt_values else -1
-            avg_playtime = (
-                sum(playtime_values) / len(playtime_values) if playtime_values else -1
-            )
+            avg_fps = get_avg(fps_values, exclude_mode.get("fps", "minmax"))
+            avg_bw = get_avg(bw_values, exclude_mode.get("bw", "minmax"))
+            avg_rtt = get_avg(rtt_values, exclude_mode.get("rtt", "minmax"))
+            avg_playtime = get_avg(playtime_values, "minmax")
+
+            # min/max 값 계산
+            def fmt(val):
+                return round(val, 2) if isinstance(val, (int, float)) else "N/A"
+
+            fps_min = fmt(min(fps_values)) if fps_values else "N/A"
+            fps_max = fmt(max(fps_values)) if fps_values else "N/A"
+            bw_min = fmt(min(bw_values)) if bw_values else "N/A"
+            bw_max = fmt(max(bw_values)) if bw_values else "N/A"
+            rtt_min = fmt(min(rtt_values)) if rtt_values else "N/A"
+            rtt_max = fmt(max(rtt_values)) if rtt_values else "N/A"
+            playtime_min = fmt(min(playtime_values)) if playtime_values else "N/A"
+            playtime_max = fmt(max(playtime_values)) if playtime_values else "N/A"
 
             # Apply background color to entire row
             fill_color = color1 if color_toggle else color2
@@ -1006,6 +1139,14 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                 "Average Playtime (s)": (
                     round(avg_playtime, 2) if avg_playtime > 0 else "N/A"
                 ),
+                "FPS Min": fps_min,
+                "FPS Max": fps_max,
+                "BW Min": bw_min,
+                "BW Max": bw_max,
+                "RTT Min": rtt_min,
+                "RTT Max": rtt_max,
+                "Playtime Min": playtime_min,
+                "Playtime Max": playtime_max,
                 "Folder": rel_folder,
                 "Number of Files": len(files),
             }
@@ -1032,12 +1173,14 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
         # CSV 파일로도 저장 (상세/평균)
         try:
             # 상세 데이터 CSV
-            details_csv = os.path.join(reports_dir, f"metrics_details_{timestamp}.csv")
+            details_csv = os.path.join(
+                reports_dir, f"metrics_details_{opt_str}_{timestamp}.csv"
+            )
             df_details = pd.DataFrame(all_data, columns=headers)
             df_details.to_csv(details_csv, index=False, encoding="utf-8-sig")
             # 평균 데이터 CSV
             averages_csv = os.path.join(
-                reports_dir, f"metrics_averages_{timestamp}.csv"
+                reports_dir, f"metrics_averages_{opt_str}_{timestamp}.csv"
             )
             avg_rows = []
             for folder in sorted_folders:
@@ -1065,14 +1208,10 @@ def export_to_excel(folder_data, reports_dir=None, timestamp=None, log_callback=
                     rtt_values = sorted(rtt_values)[1:-1]
                 if len(playtime_values) >= 3:
                     playtime_values = sorted(playtime_values)[1:-1]
-                avg_fps = sum(fps_values) / len(fps_values) if fps_values else -1
-                avg_bw = sum(bw_values) / len(bw_values) if bw_values else -1
-                avg_rtt = sum(rtt_values) / len(rtt_values) if rtt_values else -1
-                avg_playtime = (
-                    sum(playtime_values) / len(playtime_values)
-                    if playtime_values
-                    else -1
-                )
+                avg_fps = get_avg(fps_values, exclude_mode.get("fps", "minmax"))
+                avg_bw = get_avg(bw_values, exclude_mode.get("bw", "minmax"))
+                avg_rtt = get_avg(rtt_values, exclude_mode.get("rtt", "minmax"))
+                avg_playtime = get_avg(playtime_values, "minmax")
                 avg_data = {
                     "Date": path_components["date"],
                     "Network Type": path_components["network"],
